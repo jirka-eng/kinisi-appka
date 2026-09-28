@@ -95,6 +95,15 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .tscroll{overflow-x:auto;margin-bottom:16px}
 h3.sec{font-size:1rem;font-weight:500;margin:16px 0 8px}
 .trend.down{color:var(--good);font-weight:700} .trend.up{color:var(--bad);font-weight:700}
+.auth{display:grid;gap:8px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.auth small{color:var(--muted);font-size:.82rem}
+.who{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.88rem;color:var(--muted)}
+.invite{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px;display:grid;gap:8px}
+.invite h3{margin:0;font-size:1rem;font-weight:500}
+.invite .qr{background:#fff;padding:8px;border-radius:6px;width:max-content}
+.invite .qr img{display:block;width:180px;height:180px;image-rendering:pixelated}
+.invite code{font-size:.8rem;word-break:break-all;color:var(--muted)}
+.ok{color:var(--good);font-weight:500}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -104,12 +113,24 @@ h3.sec{font-size:1rem;font-weight:500;margin:16px 0 8px}
 <div class="wrap">
   <h1>Přehled pro terapeuta</h1>
   <p class="lead">Kdo cvičí, jak často a jestli se mu daří. Semafor upozorní na pacienty, kterým se máte věnovat.</p>
-  <div class="note">Prototyp: data se zatím ukládají jen v tomto prohlížeči. Pacient po cvičení pošle souhrn s odkazem, po jeho otevření se cvičení přidá sem. Po napojení na server se budou data načítat sama.</div>
+  <div class="note" id="note">Přihlaste se e-mailem. Pacienta přidáte vlevo, vytvoříte mu pozvánku (QR kód) a jeho cvičení se sem budou ukládat sama. Bez přihlášení jde jen prohlížet ukázková data nebo odkazy ze zpráv (uloží se jen v tomto prohlížeči).</div>
 
   <div class="layout">
     <aside class="panel">
+      <div class="auth" id="authOut">
+        <h2>Přihlášení terapeuta</h2>
+        <input type="email" id="email" autocomplete="email" placeholder="váš e-mail" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:.9rem">
+        <button class="btn primary" id="btnLogin">Poslat přihlašovací odkaz</button>
+        <small id="authMsg" role="status">Přijde vám e-mail s odkazem, heslo není potřeba.</small>
+      </div>
+      <div class="auth" id="authIn" hidden>
+        <div class="who"><span id="whoami"></span><button class="btn" id="btnLogout">Odhlásit</button></div>
+        <input type="text" id="newName" placeholder="Jméno nového pacienta">
+        <button class="btn primary" id="btnAdd">Přidat pacienta</button>
+        <small id="addMsg" role="status"></small>
+      </div>
       <h2>Pacienti</h2>
-      <div class="import">
+      <div class="import" id="localTools">
         <input type="text" id="linkIn" placeholder="Vložte odkaz ze zprávy od pacienta">
         <div class="row">
           <button class="btn primary" id="btnImport">Přidat cvičení</button>
@@ -126,6 +147,9 @@ h3.sec{font-size:1rem;font-weight:500;margin:16px 0 8px}
   </div>
 </div>
 
+<script src="vendor/supabase/supabase.js"></script>
+<script src="kinisi-api.js"></script>
+<script src="vendor/qrcode/qrcode.js"></script>
 <script>
 /* ---------- úložiště (zatím v prohlížeči; pro server stačí vyměnit tyto 3 funkce) ---------- */
 const KEY = "kinisi-therapist-v1";
@@ -191,10 +215,21 @@ const fmtDT = iso => new Date(iso).toLocaleString("cs-CZ", {day:"numeric", month
 const JOINT = {knee:"koleno", hip:"kyčel", sh:"rameno", el:"loket", trunk:"trup"};
 const avg = a => a.length ? a.reduce((x,y) => x+y, 0) / a.length : null;
 const within = (list, days) => list.filter(s => Date.parse(s.d) >= Date.now() - days*DAY);
-function byPatient(){
+// Zdroj dat: po přihlášení server, jinak lokální (ukázka / odkazy ze zpráv).
+let SERVER = null, ME = null;
+function fromRow(r, name){
+  return {id: r.client_id, pid: r.patient_id, p: name, ex: r.exercise, pr: r.primary_joint, d: r.started_at, du: r.duration_s,
+    r: r.reps, i: r.incomplete, g: r.good, sc: r.score, rg: r.best_range, e: r.errors || {}, pa: r.pain, ef: r.effort};
+}
+function byPatient(){  // klíč -> {name, list, patient}
   const m = new Map();
-  for(const s of loadAll()){ if(!m.has(s.p)) m.set(s.p, []); m.get(s.p).push(s); }
-  for(const l of m.values()) l.sort((a,b) => Date.parse(a.d) - Date.parse(b.d));
+  if(SERVER){
+    for(const pt of SERVER.patients) m.set(pt.id, {name: pt.name, list: [], patient: pt});
+    for(const r of SERVER.sessions){ const e = m.get(r.patient_id); if(e) e.list.push(fromRow(r, e.name)); }
+  } else {
+    for(const s of loadAll()){ if(!m.has(s.p)) m.set(s.p, {name: s.p, list: [], patient: null}); m.get(s.p).list.push(s); }
+  }
+  for(const e of m.values()) e.list.sort((a,b) => Date.parse(a.d) - Date.parse(b.d));
   return m;
 }
 function errorShares(list){  // podíl opakování s danou chybou
@@ -308,23 +343,52 @@ let selected = null, selEx = null;
 function el(tag, props = {}, ...kids){ const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; }
 function render(){
   const m = byPatient(), ul = $("plist"); ul.innerHTML = "";
-  if(!m.size){ ul.append(el("li", {className:"empty", textContent:"Zatím žádná data. Vložte odkaz od pacienta nebo načtěte ukázková data."})); $("detail").innerHTML = '<p class="empty">Vyberte pacienta vlevo.</p>'; return; }
-  const rows = [...m].map(([name, list]) => ({name, list, ev: evaluate(list)})).sort((a,b) => b.ev.level - a.ev.level || a.name.localeCompare(b.name, "cs"));
-  if(!selected || !m.has(selected)) selected = rows[0].name;
-  for(const {name, list, ev} of rows){
+  if(!m.size){ ul.append(el("li", {className:"empty", textContent: SERVER ? "Zatím žádní pacienti. Přidejte prvního nahoře." : "Zatím žádná data. Vložte odkaz od pacienta nebo načtěte ukázková data."})); $("detail").innerHTML = '<p class="empty">Vyberte pacienta vlevo.</p>'; return; }
+  const rows = [...m].map(([key, e]) => ({key, ...e, ev: evaluate(e.list)})).sort((a,b) => b.ev.level - a.ev.level || a.name.localeCompare(b.name, "cs"));
+  if(!selected || !m.has(selected)) selected = rows[0].key;
+  for(const {key, name, list, patient, ev} of rows){
     const last = list[list.length-1];
-    const b = el("button", {className:"pt", type:"button", onclick: () => { selected = name; selEx = null; render(); }},
-      el("b", {textContent: name}), badge(ev.level),
-      el("small", {textContent: `Naposledy ${fmtD(last.d)} · ${within(list, 7).length}× za 7 dní · skóre ${last.sc} %`}));
-    b.setAttribute("aria-current", name === selected);
+    const info = last ? `Naposledy ${fmtD(last.d)} · ${within(list, 7).length}× za 7 dní · skóre ${last.sc} %`
+      : (patient?.user_id ? "Telefon spárován, zatím necvičil" : "Čeká na spárování telefonu");
+    const b = el("button", {className:"pt", type:"button", onclick: () => { selected = key; selEx = null; render(); }},
+      el("b", {textContent: name}), badge(ev.level), el("small", {textContent: info}));
+    b.setAttribute("aria-current", key === selected);
     ul.append(el("li", {}, b));
   }
-  renderDetail(selected, m.get(selected));
+  const cur = m.get(selected);
+  renderDetail(cur.name, cur.list, cur.patient);
 }
-function renderDetail(name, list){
+function inviteBox(patient){
+  const box = el("div", {className:"invite"});
+  box.append(el("h3", {textContent: "Telefon pacienta"}));
+  if(patient.user_id) box.append(el("div", {className:"ok", textContent:"✓ Spárováno, cvičení se ukládají automaticky."}));
+  else box.append(el("div", {className:"empty", textContent:"Zatím nespárováno. Vytvořte pozvánku a pacient ji otevře v telefonu."}));
+  const out = el("div");
+  const show = code => {
+    out.innerHTML = "";
+    const link = KinisiAPI.inviteLink(code);
+    const qr = qrcode(0, "M"); qr.addData(link); qr.make();
+    out.append(el("div", {className:"qr"}, el("img", {src: qr.createDataURL(6, 2), alt: "QR kód pozvánky"})),
+      el("code", {textContent: link}),
+      el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent:"Kopírovat odkaz", onclick: async e => { try{ await navigator.clipboard.writeText(link); e.target.textContent = "Zkopírováno"; }catch(_){} }})),
+      el("small", {className:"empty", textContent:"Pozvánka platí 14 dní a jde použít jen jednou. Nová pozvánka tu starou zruší."}));
+  };
+  if(patient.invite_code && Date.parse(patient.invite_expires) > Date.now()) show(patient.invite_code);
+  const btn = el("button", {className: patient.user_id ? "btn" : "btn primary", type:"button", textContent: patient.user_id ? "Spárovat jiný telefon" : "Vytvořit pozvánku (QR)", onclick: async () => {
+    btn.disabled = true;
+    try{ const code = await KinisiAPI.createInvite(patient.id); patient.invite_code = code; patient.invite_expires = new Date(Date.now() + 14*DAY).toISOString(); show(code); }
+    catch(e){ out.textContent = "Pozvánku se nepodařilo vytvořit: " + e.message; }
+    btn.disabled = false;
+  }});
+  box.append(el("div", {className:"row"}, btn), out);
+  return box;
+}
+function renderDetail(name, list, patient){
   const d = $("detail"); d.innerHTML = "";
   const ev = evaluate(list);
   d.append(el("div", {className:"dhead"}, el("h2", {textContent: name}), badge(ev.level)));
+  if(patient) d.append(inviteBox(patient));
+  if(!list.length){ d.append(el("p", {className:"empty", textContent:"Zatím žádné cvičení."}), deleteBtn(name, patient)); return; }
   if(ev.reasons.length){ const ul = el("ul", {className:"reasons"}); ev.reasons.forEach(r => ul.append(el("li", {textContent: r}))); d.append(ul); }
   d.append(el("div", {className:"auto"}, el("strong", {textContent:"Souhrn"}), autoSummary(name, list)));
 
@@ -378,13 +442,55 @@ function renderDetail(name, list){
       el("td", {className:"num", textContent: s.pa == null ? "–" : s.pa}), el("td", {textContent: s.ef == null ? "–" : EF[s.ef]}), el("td", {textContent: errs})));
   }
   t.append(tb); d.append(el("div", {className:"tscroll"}, t));
-  d.append(el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent:"Smazat data pacienta", onclick: () => {
+  d.append(deleteBtn(name, patient));
+}
+function deleteBtn(name, patient){
+  return el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent: patient ? "Smazat pacienta" : "Smazat data pacienta", onclick: async () => {
+    if(patient){
+      if(!confirm(`Opravdu smazat pacienta ${name} i se všemi jeho cvičeními? Nejde to vrátit.`)) return;
+      try{ await KinisiAPI.deletePatient(patient.id); }catch(e){ alert("Smazání se nepovedlo: " + e.message); return; }
+      selected = null; await refresh(); return;
+    }
     if(!confirm(`Opravdu smazat všechna cvičení pacienta ${name} z tohoto prohlížeče?`)) return;
     saveAll(loadAll().filter(s => s.p !== name)); selected = null; render();
-  }})));
+  }}));
 }
 if(window.__imported){ selected = window.__imported.p; msg(`Přidáno: ${window.__imported.p}, ${window.__imported.ex}.`); }
 if(window.__importErr) msg("Odkaz se nepodařilo přečíst.");
+
+/* ---------- přihlášení a server ---------- */
+let live = null;
+async function refresh(){
+  if(!ME){ SERVER = null; render(); return; }
+  try{ SERVER = await KinisiAPI.loadTherapistData(); }
+  catch(e){ $("detail").innerHTML = ""; $("detail").append(el("p", {className:"empty", textContent: "Data se nepodařilo načíst: " + e.message})); return; }
+  render();
+}
+async function setUser(session){
+  ME = session && !session.user.is_anonymous ? session.user : null;
+  $("authOut").hidden = !!ME; $("authIn").hidden = !ME; $("localTools").hidden = !!ME;
+  $("note").hidden = !!ME;
+  if(ME){ $("whoami").textContent = ME.email; if(!live) live = KinisiAPI.onSessionsChange(() => refresh()); }
+  selected = null; await refresh();
+}
+$("btnLogin").onclick = async () => {
+  const email = $("email").value.trim();
+  if(!/^\S+@\S+\.\S+$/.test(email)){ $("authMsg").textContent = "Zadejte platný e-mail."; return; }
+  $("btnLogin").disabled = true;
+  try{ await KinisiAPI.signIn(email); $("authMsg").textContent = `Odkaz jsme poslali na ${email}. Otevřete ho na tomto zařízení.`; }
+  catch(e){ $("authMsg").textContent = "Nepovedlo se: " + e.message; }
+  $("btnLogin").disabled = false;
+};
+$("btnLogout").onclick = async () => { await KinisiAPI.signOut(); };
+$("btnAdd").onclick = async () => {
+  const name = $("newName").value.trim(); if(!name){ $("addMsg").textContent = "Zadejte jméno."; return; }
+  $("btnAdd").disabled = true;
+  try{ const p = await KinisiAPI.addPatient(name); $("newName").value = ""; $("addMsg").textContent = `Přidán: ${name}. Vytvořte mu pozvánku.`; await refresh(); selected = p.id; render(); }
+  catch(e){ $("addMsg").textContent = "Nepovedlo se: " + e.message; }
+  $("btnAdd").disabled = false;
+};
+// setTimeout: uvnitř onAuthStateChange se nesmí čekat na další volání Supabase (zablokovalo by se to)
+KinisiAPI.onAuth((ev, session) => { if(ev === "SIGNED_IN" || ev === "SIGNED_OUT" || ev === "INITIAL_SESSION") setTimeout(() => setUser(session), 0); });
 render();
 </script>
 </body>

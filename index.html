@@ -97,6 +97,9 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .scale{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
 .scale button{min-width:34px;padding:7px 8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:.85rem;border-radius:6px;cursor:pointer}
 .scale button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--accent-ink);font-weight:700}
+.sync{font-size:.88rem;font-weight:500;margin:0 0 10px}
+.sync.ok{color:var(--good)} .sync.wait{color:var(--warn)}
+.paired{font-size:.85rem;color:var(--good);font-weight:500;margin:-6px 0 12px}
 .hist{list-style:none;padding:0!important;font-size:.85rem}
 .hist li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
 [hidden]{display:none!important}
@@ -149,6 +152,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
         <label class="field">Jméno pacienta (uvidí ho terapeut)
           <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
         </label>
+        <div class="paired" id="pairedNote" hidden></div>
         <div class="reps"><b id="repCount">0</b><span>opakování</span></div>
         <div class="row">
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
@@ -172,6 +176,8 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
   </div>
 </div>
 
+<script src="vendor/supabase/supabase.js"></script>
+<script src="kinisi-api.js"></script>
 <script type="module">
 import { PoseLandmarker, FilesetResolver } from "./vendor/mediapipe/vision_bundle.mjs";
 
@@ -287,6 +293,20 @@ function setMode(m){
 }
 document.querySelectorAll(".modes button").forEach(b => b.onclick = () => { stopAll(); setMode(b.dataset.mode); });
 try{ $("patient").value = localStorage.getItem("fyzio-patient") || ""; }catch(e){}
+function showPairing(p){
+  if(!p) return;
+  $("patient").value = p.name; $("patient").readOnly = true;
+  $("pairedNote").hidden = false; $("pairedNote").textContent = "✓ Spárováno s terapeutem, cvičení se ukládají automaticky.";
+}
+(async () => {
+  const api = window.KinisiAPI; if(!api) return;
+  showPairing(api.getPairing());
+  try{
+    const p = await api.pairFromUrl();
+    if(p){ showPairing(p); setStatus("good", `Vítej, ${p.name}. Telefon je spárovaný s terapeutem.`, 4000); }
+  }catch(e){ setStatus("warn", e.message, 6000); }
+  api.flushQueue();
+})();
 $("patient").onchange = () => { try{ localStorage.setItem("fyzio-patient", $("patient").value.trim()); }catch(e){} };
 
 // Výchozí je přední kamera, ať cvičící vidí displej. Volba se pamatuje v prohlížeči.
@@ -509,7 +529,20 @@ function endSession(){
   for(const r of s.reps) for(const m of [...r.errors, ...r.notes]) rec.errors[m] = (rec.errors[m] || 0) + 1;
   const h = loadHistory(); h.push(rec); saveHistory(h);
   renderSummary(rec);
+  sync(rec);
   return rec;
+}
+// Spárovaný telefon posílá souhrn na server (jen čísla, žádné video).
+async function sync(rec){
+  const api = window.KinisiAPI;
+  if(!api?.getPairing()) return;
+  const note = () => document.getElementById("syncNote");
+  if(note()){ note().className = "sync wait"; note().textContent = "Ukládám pro terapeuta…"; }
+  const r = await api.uploadSession(rec);
+  if(note()){
+    note().className = "sync " + (r.ok ? "ok" : "wait");
+    note().textContent = r.ok ? "✓ Uloženo, terapeut to uvidí ve svém přehledu." : "Zatím neodesláno (bez připojení?). Pošle se samo příště.";
+  }
 }
 function updateSession(id, patch){
   const h = loadHistory(), i = h.findIndex(x => x.id === id);
@@ -557,6 +590,7 @@ function renderSummary(rec){
   const jn = JMAP[rec.primary]?.name.toLowerCase() || "hlavní kloub";
   const dl = rangeDelta(rec);
   box.append(el("h2", {textContent: "Souhrn cvičení"}));
+  if(window.KinisiAPI?.getPairing()) box.append(el("p", {id: "syncNote", className: "sync"}));
   const d = el("dl");
   const row = (k, ...v) => d.append(el("dt", {textContent: k}), el("dd", {}, ...v));
   row("Opakování", `${rec.reps} (správně ${rec.good})` + (rec.incomplete ? `, nedokončená ${rec.incomplete}` : ""));
@@ -581,16 +615,17 @@ function renderSummary(rec){
   }
   box.append(el("h3", {textContent: "Bolelo to? (0 = vůbec, 10 = hodně)"}));
   const pain = el("div", {className: "scale"});
-  for(let i = 0; i <= 10; i++) pain.append(el("button", {type: "button", textContent: i, onclick: () => { rec = updateSession(rec.id, {pain: i}) || rec; renderSummary(rec); }}));
+  for(let i = 0; i <= 10; i++) pain.append(el("button", {type: "button", textContent: i, onclick: () => { rec = updateSession(rec.id, {pain: i}) || rec; renderSummary(rec); sync(rec); }}));
   [...pain.children].forEach((b, i) => b.setAttribute("aria-pressed", rec.pain === i));
   box.append(pain);
   box.append(el("h3", {textContent: "Jak náročné to bylo?"}));
   const eff = el("div", {className: "scale"});
-  EFFORT.forEach((t, i) => { const b = el("button", {type: "button", textContent: t, onclick: () => { rec = updateSession(rec.id, {effort: i}) || rec; renderSummary(rec); }}); b.setAttribute("aria-pressed", rec.effort === i); eff.append(b); });
+  EFFORT.forEach((t, i) => { const b = el("button", {type: "button", textContent: t, onclick: () => { rec = updateSession(rec.id, {effort: i}) || rec; renderSummary(rec); sync(rec); }}); b.setAttribute("aria-pressed", rec.effort === i); eff.append(b); });
   box.append(eff);
 
   const text = summaryText(rec);
-  const share = el("button", {className: "btn primary", type: "button", textContent: "Poslat terapeutovi", onclick: async () => {
+  const paired = !!window.KinisiAPI?.getPairing();
+  const share = el("button", {className: paired ? "btn" : "btn primary", type: "button", textContent: paired ? "Poslat i zprávou" : "Poslat terapeutovi", onclick: async () => {
     if(navigator.share){ try{ await navigator.share({title: "Kinisi - souhrn cvičení", text}); return; }catch(e){ if(e.name === "AbortError") return; } }
     window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
   }});
