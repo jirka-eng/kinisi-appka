@@ -6,7 +6,9 @@
   const PAIR_KEY = "kinisi-pairing", QUEUE_KEY = "kinisi-upload-queue";
 
   const sb = window.supabase.createClient(URL_, KEY, {
-    auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit"}
+    // Terapeut a pacient mají oddělené přihlášení, aby šly obě stránky zkoušet na jednom zařízení.
+    auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit",
+      storageKey: /terapeut/.test(location.pathname) ? "kinisi-auth-therapist" : "kinisi-auth-patient"}
   });
   const store = {
     get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch(e){ return d; } },
