@@ -110,6 +110,16 @@ h3.sec{font-size:1rem;font-weight:500;margin:16px 0 8px}
 .pitem label{display:grid;gap:2px;font-size:.78rem;color:var(--muted)}
 .pitem select,.pitem input[type=number]{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;font-size:.9rem}
 .pitem .chk{display:flex;gap:6px;align-items:center;font-size:.85rem;color:var(--ink)}
+.pitem details{grid-column:1 / -1;font-size:.85rem}
+.pitem details summary{cursor:pointer;color:var(--ink);font-weight:500}
+.jrow{display:grid;grid-template-columns:1fr 80px;gap:6px 10px;align-items:center;margin-top:6px}
+.jrow select{grid-column:1 / -1}
+.vplayer{border:1px solid var(--line);border-radius:8px;padding:12px;margin:0 0 16px;display:grid;gap:8px}
+.vplayer video{width:100%;max-height:70vh;background:#000;border-radius:6px}
+.vplayer ol{margin:0;padding-left:18px;font-size:.88rem;max-height:160px;overflow:auto}
+.vplayer li button{border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;text-align:left;padding:0}
+.vplayer li button b{color:var(--muted);font-weight:500;margin-right:6px;font-variant-numeric:tabular-nums}
+.play{border:0;background:none;color:var(--good);font:inherit;font-weight:700;cursor:pointer;padding:0}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -226,7 +236,7 @@ let SERVER = null, ME = null;
 function fromRow(r, name){
   return {id: r.client_id, pid: r.patient_id, p: name, ex: r.exercise, pr: r.primary_joint, d: r.started_at, du: r.duration_s,
     r: r.reps, i: r.incomplete, g: r.good, sc: r.score, rg: r.best_range, e: r.errors || {}, pa: r.pain, ef: r.effort,
-    ref: r.ref_id, tr: r.target_reps, ts: r.target_sets};
+    ref: r.ref_id, tr: r.target_reps, ts: r.target_sets, vp: r.video_path, m: r.replay?.m || []};
 }
 function byPatient(){  // klíč -> {name, list, patient}
   const m = new Map();
@@ -407,6 +417,38 @@ function inviteBox(patient){
 let LIB = null, progDirty = false;
 async function lib(){ if(!LIB){ try{ LIB = await (await fetch("refs/index.json", {cache:"no-cache"})).json(); }catch(e){ LIB = []; } } return LIB; }
 const PREC = [[10,"Přísně (10°)"],[15,"Běžně (15°)"],[20,"Volně (20°)"],[25,"Velmi volně (25°)"]];
+const JNAME = {knee:"Koleno", hip:"Kyčel", sh:"Rameno", el:"Loket", trunk:"Trup (sklon)", head:"Krk a hlava", shin:"Kolena vpřed", heel:"Paty", toe:"Špičky", lumbar:"Bedra", thor:"Hrudní záda"};
+const REFS = {};
+async function refChecks(refId){
+  if(!REFS[refId]){ const e = (await lib()).find(x => x.id === refId); REFS[refId] = e ? fetch(e.file, {cache:"no-cache"}).then(r => r.json()).catch(() => null) : Promise.resolve(null); }
+  return REFS[refId];
+}
+// Podrobná přesnost: každá kontrola zvlášť (zapnuto, tolerance, krk v prodloužení / podle vzoru)
+function checksEditor(it){
+  const det = el("details", {}, el("summary", {textContent:"Podrobně: přesnost jednotlivých kontrol"}));
+  const body = el("div"); det.append(body);
+  det.addEventListener("toggle", async () => {
+    if(!det.open || det.dataset.loaded) return;
+    det.dataset.loaded = "1";
+    const ref = await refChecks(it.ref); if(!ref){ body.textContent = "Cvik se nepodařilo načíst."; return; }
+    it.precision.joints ??= {};
+    const base = ref.settings?.joints || {};
+    for(const id of ref.present){
+      const cur = {...base[id], ...it.precision.joints[id]};
+      const c = el("input", {type:"checkbox", checked: cur.on !== false, onchange: () => { it.precision.joints[id] = {...it.precision.joints[id], on: c.checked}; }});
+      const n = el("input", {type:"number", min:5, max:40, value: cur.tol ?? it.precision.tol ?? 15, title:"Tolerance ve stupních", oninput: () => { it.precision.joints[id] = {...it.precision.joints[id], tol: Math.max(5, Math.min(40, +n.value || 15))}; }});
+      const row = el("div", {className:"jrow"}, el("label", {className:"chk"}, c, JNAME[id] || id), el("label", {}, "Tolerance °", n));
+      if(id === "head"){
+        const sel = el("select", {onchange: () => { it.precision.joints[id] = {...it.precision.joints[id], mode: sel.value}; }},
+          el("option", {value:"line", textContent:"Držet v prodloužení páteře", selected: cur.mode === "line"}),
+          el("option", {value:"ref", textContent:"Porovnávat se vzorem", selected: cur.mode !== "line"}));
+        row.append(sel);
+      }
+      body.append(row);
+    }
+  });
+  return det;
+}
 function programBox(patient){
   const box = el("div", {className:"prog"});
   box.addEventListener("input", () => { progDirty = true; }); box.addEventListener("change", () => { progDirty = true; });
@@ -418,7 +460,7 @@ function programBox(patient){
     const L = await lib(); list.innerHTML = "";
     if(!items.length) list.append(el("p", {className:"empty", textContent:"Zatím prázdná. Přidejte cvik z knihovny."}));
     items.forEach((it, k) => {
-      const sel = el("select", {onchange: () => { it.ref = sel.value; it.name = L.find(x => x.id === sel.value)?.name || sel.value; }});
+      const sel = el("select", {onchange: () => { it.ref = sel.value; it.name = L.find(x => x.id === sel.value)?.name || sel.value; if(it.precision) delete it.precision.joints; draw(); }});
       for(const x of L) sel.append(el("option", {value: x.id, textContent: x.name, selected: x.id === it.ref}));
       const per = el("select", {onchange: () => { it.freq.per = per.value; }}, el("option", {value:"day", textContent:"denně", selected: it.freq.per !== "week"}), el("option", {value:"week", textContent:"týdně", selected: it.freq.per === "week"}));
       const prec = el("select", {onchange: () => { it.precision.tol = +prec.value; }});
@@ -432,7 +474,7 @@ function programBox(patient){
         num("Kolikrát", it.freq.times, 1, 14, v => it.freq.times = v),
         el("label", {}, "Jak často", per),
         el("label", {}, "Přesnost", prec),
-        chk("Hlídat hloubku", "depth"), chk("Hlídat tempo", "tempo"),
+        chk("Hlídat hloubku", "depth"), chk("Hlídat tempo", "tempo"), checksEditor(it),
         el("button", {className:"btn", type:"button", textContent:"Odebrat", onclick: () => { items.splice(k, 1); draw(); }})));
     });
   };
@@ -465,6 +507,8 @@ function renderDetail(name, list, patient){
     tile("Rozsah od začátku", rgD == null ? "–" : `${rgD > 0 ? "+" : ""}${rgD}°`, rg.length ? `teď ${rg[rg.length-1].rg}°` : ""),
     tile("Poslední bolest", last.pa == null ? "–" : `${last.pa}/10`, ""),
     ...(() => { const ad = adherence(list, patient?.program, patient?.created_at); return ad ? [tile(`Plnění sestavy (${ad.days} dní)`, `${ad.pct} %`, ad.per.map(x => `${x.name} ${x.got}/${x.need}`).join(", "))] : []; })()));
+  const vp = el("div", {className:"vplayer", id:"vplayer"}); vp.hidden = true;
+  d.append(vp);
   if(patient) d.append(programBox(patient), inviteBox(patient));
 
   const exs = [...new Set(list.map(s => s.ex))];
@@ -499,15 +543,33 @@ function renderDetail(name, list, patient){
   d.append(el("h3", {className:"sec", textContent:"Jednotlivá cvičení"}));
   const EF = ["lehké","akorát","těžké"];
   const t = el("table"), tb = el("tbody");
-  t.append(el("thead", {}, el("tr", {}, ...["Kdy","Opak.","Plán","Správně","Skóre","Rozsah","Bolest","Náročnost","Chyby"].map((x,i) => el("th", {className: i && i < 7 ? "num" : "", textContent:x})))));
+  t.append(el("thead", {}, el("tr", {}, ...["Kdy","Záznam","Opak.","Plán","Správně","Skóre","Rozsah","Bolest","Náročnost","Chyby"].map((x,i) => el("th", {className: i > 1 && i < 8 ? "num" : "", textContent:x})))));
   for(const s of [...l].reverse()){
     const errs = Object.entries(s.e || {}).map(([k,n]) => `${k} ${n}×`).join(", ") || "–";
-    tb.append(el("tr", {}, el("td", {textContent: fmtDT(s.d)}), el("td", {className:"num", textContent: s.r + (s.i ? ` (+${s.i})` : "")}), el("td", {className:"num", textContent: s.ts ? `${s.ts}×${s.tr}` : "–"}),
+    tb.append(el("tr", {}, el("td", {textContent: fmtDT(s.d)}),
+      el("td", {}, s.vp ? el("button", {className:"play", type:"button", textContent:"▶ Přehrát", onclick: () => playSession(s)}) : "–"),
+      el("td", {className:"num", textContent: s.r + (s.i ? ` (+${s.i})` : "")}), el("td", {className:"num", textContent: s.ts ? `${s.ts}×${s.tr}` : "–"}),
       el("td", {className:"num", textContent: s.g}), el("td", {className:"num", textContent: s.sc + " %"}), el("td", {className:"num", textContent: s.rg == null ? "–" : s.rg + "°"}),
       el("td", {className:"num", textContent: s.pa == null ? "–" : s.pa}), el("td", {textContent: s.ef == null ? "–" : EF[s.ef]}), el("td", {textContent: errs})));
   }
   t.append(tb); d.append(el("div", {className:"tscroll"}, t));
   d.append(deleteBtn(name, patient));
+}
+// Přehrání videozáznamu cvičení (odkaz platí 1 hodinu) + časová osa pokynů, které zazněly
+async function playSession(s){
+  const box = document.getElementById("vplayer"); if(!box) return;
+  box.hidden = false; box.innerHTML = ""; box.append(el("p", {className:"empty", textContent:"Načítám video…"}));
+  box.scrollIntoView({behavior:"smooth", block:"start"});
+  let url; try{ url = await KinisiAPI.videoUrl(s.vp); }catch(e){ box.innerHTML = ""; box.append(el("p", {className:"empty", textContent:"Video se nepodařilo načíst: " + e.message})); return; }
+  box.innerHTML = "";
+  const v = el("video", {src: url, controls: true, playsInline: true});
+  box.append(el("h3", {className:"sec", style:"margin:0", textContent:`Záznam: ${s.ex}, ${fmtDT(s.d)}`}), v);
+  if(s.m?.length){
+    const ol = el("ol");
+    for(const [t, text] of s.m) ol.append(el("li", {}, el("button", {type:"button", onclick: () => { v.currentTime = t; v.play(); }}, el("b", {textContent: `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,"0")}`}), text)));
+    box.append(el("small", {className:"empty", textContent:"Pokyny během cvičení (klepnutím přeskočíte na čas):"}), ol);
+  }
+  box.append(el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent:"Zavřít", onclick: () => { v.pause(); box.hidden = true; box.innerHTML = ""; }})));
 }
 function deleteBtn(name, patient){
   return el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent: patient ? "Smazat pacienta" : "Smazat data pacienta", onclick: async () => {

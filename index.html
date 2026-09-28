@@ -108,6 +108,13 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .program li small{grid-column:1;color:var(--muted);font-size:.8rem}
 .program li .done{color:var(--good);font-weight:700}
 .program .btn{padding:6px 12px;grid-row:1 / span 2;grid-column:2}
+.player{margin:0 0 12px}
+.player video{width:100%;max-height:60vh;border-radius:8px;background:#000;display:block}
+.player button{margin-top:6px}
+.hist button{border:0;background:none;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;padding:0 4px}
+details.mine{margin:0 0 14px;font-size:.9rem}
+details.mine summary{cursor:pointer;font-weight:500}
+.consent{font-size:.85rem;margin:-4px 0 12px}
 .hist{list-style:none;padding:0!important;font-size:.85rem}
 .hist li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
 .refpip{position:absolute;left:10px;top:10px;width:34%;max-width:320px;border-radius:8px;overflow:hidden;background:#000;border:2px solid var(--brand);box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;z-index:2}
@@ -175,7 +182,10 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
           <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
         </label>
         <div class="paired" id="pairedNote" hidden></div>
+        <label class="check consent" id="consentRow" hidden><input type="checkbox" id="videoConsent"> Posílat videozáznam cvičení terapeutovi</label>
         <div class="program" id="program" hidden></div>
+        <div class="player" id="player" hidden></div>
+        <details class="mine" id="mine" hidden><summary>Moje cvičení</summary><ul class="hist" id="mineList"></ul></details>
         <div class="reps"><b id="repCount">0</b><span id="repOf">opakování</span></div>
         <div class="row">
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
@@ -257,6 +267,7 @@ function S(){  // aktuální nastavení pro REF (výchozí + uložené úpravy)
     Object.assign(st.plan, {reps: it.reps ?? st.plan.reps, sets: it.sets ?? st.plan.sets, rest: it.rest ?? st.plan.rest});
     const pr = it.precision || {};
     if(pr.tol != null){ st.tol = pr.tol; for(const k in st.joints) delete st.joints[k].tol; }
+    for(const [id, o] of Object.entries(pr.joints || {})) st.joints[id] = {...st.joints[id], ...o};
     if(pr.depth != null) st.depth.on = pr.depth;
     if(pr.tempo != null) st.tempo.on = pr.tempo;
   }
@@ -329,6 +340,7 @@ async function loadRefVideo(){
   }catch(e){ refVideoUrl = null; }
 }
 function showRefPip(on){
+  if(on && !refVideoUrl && REF && $("showRef").checked && !showRefPip.warned){ showRefPip.warned = true; logLine("Tento vzor nemá video, proto se vedle tebe neukazuje. Použij vzor z videa, nebo vzor nahraj znovu."); }
   const ok = on && refVideoUrl && $("showRef").checked;
   $("refPip").hidden = !ok;
   if(!ok) return;
@@ -360,6 +372,7 @@ const said = [];
 function speak(text, force = false){
   const now = DEBUG && !video.srcObject ? video.currentTime*1000 : performance.now();
   if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return;
+  if(sess && exRec) sess.msgs.push([Math.round((performance.now() - exRec.t0) / 100) / 10, text]);
   if(DEBUG) said.push({t: Math.round(video.currentTime*10)/10, text});
   if(!$("voice").checked || !("speechSynthesis" in window)) return;
   lastSpoken = text; lastSpokenT = now;
@@ -423,8 +436,11 @@ function setMode(m){
 }
 document.querySelectorAll(".modes button").forEach(b => b.onclick = () => { stopAll(); setMode(b.dataset.mode); });
 try{ $("patient").value = localStorage.getItem("fyzio-patient") || ""; }catch(e){}
+try{ $("videoConsent").checked = localStorage.getItem("kinisi-video-consent") === "1"; }catch(e){}
+$("videoConsent").onchange = () => { try{ localStorage.setItem("kinisi-video-consent", $("videoConsent").checked ? "1" : "0"); }catch(e){} if($("videoConsent").checked) flushVideos(); };
 function showPairing(p){
   if(!p) return;
+  $("consentRow").hidden = false;
   $("patient").value = p.name; $("patient").readOnly = true;
   $("pairedNote").hidden = false; $("pairedNote").textContent = "✓ Spárováno s terapeutem, cvičení se ukládají automaticky.";
 }
@@ -474,7 +490,8 @@ async function loadProgram(){
     const p = await api.pairFromUrl();
     if(p){ showPairing(p); setStatus("good", `Vítej, ${p.name}. Telefon je spárovaný s terapeutem.`, 4000); }
   }catch(e){ setStatus("warn", e.message, 6000); }
-  api.flushQueue();
+  api.flushQueue(); if($("videoConsent").checked) flushVideos();
+  renderMine();
   if(api.getPairing()){ await initDone; loadProgram(); }
 })();
 $("patient").onchange = () => { try{ localStorage.setItem("fyzio-patient", $("patient").value.trim()); }catch(e){} };
@@ -723,7 +740,7 @@ function lastSession(name, beforeId){ return loadHistory().filter(x => x.ex === 
 function newRepAcc(){ return {frames:0, bad:0, err:{}, dev:-1, pose:null}; }
 function startSession(){
   const pl = S().plan;
-  sess = {id: Date.now(), ex: REF.name, primary: REF.primary, plan: {reps: pl.reps, sets: pl.sets}, date: new Date().toISOString(), t0: performance.now(), reps: [], acc: newRepAcc(), bestRange: null, pose: null};
+  sess = {id: Date.now(), msgs: [], ex: REF.name, primary: REF.primary, plan: {reps: pl.reps, sets: pl.sets}, date: new Date().toISOString(), t0: performance.now(), reps: [], acc: newRepAcc(), bestRange: null, pose: null};
   ghost = lastSession(REF.name)?.pose || null;
   $("summary").hidden = true;
 }
@@ -751,7 +768,7 @@ function recordRep(r, notes){
 }
 function endSession(){
   const s = sess; sess = null;
-  if(!s || !s.reps.length) return null;
+  if(!s || !s.reps.length){ stopExRec(); return null; }
   const full = s.reps.filter(r => r.full);
   const rec = {id: s.id, refId: REF?.id || null, patient: $("patient").value.trim() || "Pacient", ex: s.ex, primary: s.primary, date: s.date, dur: Math.round((performance.now() - s.t0)/1000),
     reps: full.length, incomplete: s.reps.length - full.length,
@@ -760,8 +777,10 @@ function endSession(){
     errors: {}, bestRange: s.bestRange, pose: s.pose, pain: null, effort: null, plan: s.plan, sets: setNo};
   for(const r of s.reps) for(const m of [...r.errors, ...r.notes]) rec.errors[m] = (rec.errors[m] || 0) + 1;
   const h = loadHistory(); h.push(rec); saveHistory(h);
+  if(s.msgs.length) rec.replay = {m: s.msgs.slice(0, 300)};
   renderSummary(rec);
   sync(rec);
+  stopExRec().then(blob => blob && handleVideo(rec, blob));
   renderProgram();
   return rec;
 }
@@ -782,6 +801,82 @@ function updateSession(id, patch){
   if(i < 0) return null;
   Object.assign(h[i], patch); saveHistory(h); return h[i];
 }
+
+/* ---------- videozáznam cvičení (obraz + kostra + pokyny); v telefonu posledních 10, terapeutovi jen se souhlasem ---------- */
+let exRec = null;
+const VID_LIST = "kinisi-videos", VID_QUEUE = "kinisi-video-queue";
+const lsGet = (k, d) => { try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch(e){ return d; } };
+const lsSet = (k, v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction("blobs", "readwrite"); tx.objectStore("blobs").delete(key); tx.oncomplete = res; tx.onerror = res; }); }
+function startExRec(){
+  exRec = null;
+  if(!window.MediaRecorder || !video.videoWidth) return;
+  try{
+    const k = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
+    const c = document.createElement("canvas"); c.width = Math.round(video.videoWidth*k/2)*2; c.height = Math.round(video.videoHeight*k/2)*2;
+    const mime = ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => MediaRecorder.isTypeSupported?.(m));
+    const rec = new MediaRecorder(c.captureStream(15), mime ? {mimeType: mime, videoBitsPerSecond: 700000} : undefined);
+    const chunks = []; rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+    rec.start(1000);
+    exRec = {c, x: c.getContext("2d"), rec, chunks, t0: performance.now()};
+  }catch(e){ exRec = null; }
+}
+function drawExRec(){
+  if(!exRec) return;
+  const {c, x} = exRec;
+  x.drawImage(video, 0, 0, c.width, c.height); x.drawImage(canvas, 0, 0, c.width, c.height);
+  const txt = statusEl.textContent; if(!txt) return;
+  const fs = Math.round(c.height / 26);
+  x.font = `700 ${fs}px Roboto, sans-serif`;
+  x.fillStyle = statusEl.classList.contains("bad") ? "rgba(216,65,47,.9)" : statusEl.classList.contains("good") ? "rgba(30,140,92,.9)" : "rgba(29,29,38,.8)";
+  x.fillRect(0, c.height - fs*2, c.width, fs*2);
+  x.fillStyle = "#fff"; x.fillText(txt.slice(0, 60), fs*0.6, c.height - fs*0.65);
+}
+function stopExRec(){
+  const r = exRec; exRec = null;
+  if(!r || r.rec.state === "inactive") return Promise.resolve(null);
+  return new Promise(res => { r.rec.onstop = () => res(r.chunks.length ? new Blob(r.chunks, {type: r.rec.mimeType || "video/webm"}) : null); r.rec.stop(); });
+}
+async function handleVideo(rec, blob){
+  try{
+    await idbPut("ex-" + rec.id, blob);
+    const list = lsGet(VID_LIST, []).filter(id => id !== rec.id); list.push(rec.id);
+    while(list.length > 10) await idbDel("ex-" + list.shift());
+    lsSet(VID_LIST, list);
+  }catch(e){}
+  if(sessIdShown === rec.id) renderSummary(loadHistory().find(x => x.id === rec.id) || rec);
+  renderMine();
+  if(window.KinisiAPI?.getPairing() && $("videoConsent").checked){ lsSet(VID_QUEUE, [...new Set([...lsGet(VID_QUEUE, []), rec.id])]); flushVideos(); }
+}
+async function flushVideos(){
+  const api = window.KinisiAPI; if(!api?.getPairing()) return;
+  for(const id of lsGet(VID_QUEUE, [])){
+    try{
+      const blob = await idbGet("ex-" + id); if(!blob){ lsSet(VID_QUEUE, lsGet(VID_QUEUE, []).filter(x => x !== id)); continue; }
+      const path = await api.uploadVideo(id, blob);
+      const rec = updateSession(id, {videoPath: path});
+      if(rec) await api.uploadSession(rec);
+      lsSet(VID_QUEUE, lsGet(VID_QUEUE, []).filter(x => x !== id));
+      const n = document.getElementById("syncNote"); if(n && sessIdShown === id) n.textContent = "✓ Uloženo i s videem, terapeut si ho může přehrát.";
+    }catch(e){ /* zkusí se příště */ }
+  }
+}
+async function playVideo(id){
+  const blob = await idbGet("ex-" + id).catch(() => null);
+  const box = $("player"); box.innerHTML = "";
+  if(!blob){ box.hidden = true; return; }
+  const url = URL.createObjectURL(blob);
+  const v = el("video", {src: url, controls: true, playsInline: true});
+  box.append(v, el("button", {className: "btn", type: "button", textContent: "Zavřít záznam", onclick: () => { v.pause(); URL.revokeObjectURL(url); box.hidden = true; box.innerHTML = ""; }}));
+  box.hidden = false; box.scrollIntoView({behavior: "smooth", block: "start"}); v.play().catch(() => {});
+}
+function renderMine(){
+  const list = lsGet(VID_LIST, []), h = loadHistory().slice(-15).reverse();
+  $("mine").hidden = !h.length; const ul = $("mineList"); ul.innerHTML = "";
+  for(const x of h) ul.append(el("li", {}, el("span", {textContent: `${fmtDate(x.date)} · ${x.ex}`}),
+    el("span", {}, `${x.reps}× · ${x.score} %`, list.includes(x.id) ? el("button", {type: "button", textContent: "▶ Přehrát", onclick: () => playVideo(x.id)}) : "")));
+}
+let sessIdShown = null;
 
 /* ---------- souhrn po cvičení ---------- */
 const fmtDate = iso => new Date(iso).toLocaleString("cs-CZ", {day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"});
@@ -824,6 +919,8 @@ function renderSummary(rec){
   const jn = JMAP[rec.primary]?.name.toLowerCase() || "hlavní kloub";
   const dl = rangeDelta(rec);
   box.append(el("h2", {textContent: "Souhrn cvičení"}));
+  sessIdShown = rec.id;
+  if(lsGet(VID_LIST, []).includes(rec.id)) box.append(el("div", {className: "row"}, el("button", {className: "btn", type: "button", textContent: "▶ Přehrát záznam cvičení", onclick: () => playVideo(rec.id)})));
   if(window.KinisiAPI?.getPairing()) box.append(el("p", {id: "syncNote", className: "sync"}));
   const d = el("dl");
   const row = (k, ...v) => d.append(el("dt", {textContent: k}), el("dd", {}, ...v));
@@ -918,6 +1015,8 @@ $("btnExStart").onclick = async () => {
   if(!REF) return;
   const setup = REF.setup?.length ? REF.setup.join(" ") : "Připrav se";
   const spoken = speakAndWait(setup, REF.setup?.length ? 15000 : 1500);  // první speak() musí být přímo v kliknutí (iOS)
+  if(refVideoUrl) refVideo.play().then(() => refVideo.pause()).catch(() => {});  // iOS ukáže snímky videa až po přehrání v kliknutí
+  $("player").hidden = true;
   $("btnExStart").disabled = true;
   try{ await startCamera(); }catch(e){ $("btnExStart").disabled = false; return; }
   setStatus("", REF.setup?.length ? REF.setup.join(" ") : "Postav se bokem do záběru…", 1);
@@ -928,7 +1027,7 @@ $("btnExStart").onclick = async () => {
   await countdown(3);
   counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; smooth = {}; cur = null;
   setNo = 1; setReps = 0; showReps(); $("log").innerHTML = "";
-  startSession();
+  startSession(); startExRec();
   mode = "exercise"; $("btnExStop").disabled = false;
   speak("Začni", true);
 };
@@ -1095,6 +1194,7 @@ function loop(){
   if(mode === "recording" || mode === "uploading") frames.push({t, a, f: facing});
   else if(mode === "exercise") flags = exerciseStep(a, t, lm, W, H);
   draw(lm, flags, W, H);
+  drawExRec();
 }
 
 /* ---------- ladění: ?debug (vzor z videa, video jako pacient; snímek po snímku, běží i ve skrytém okně) ---------- */
@@ -1139,11 +1239,12 @@ if(DEBUG) window.__fyzio = {
     const flagged = {}, follow = [], modes = [];
     let started = false;
     await eachFrame(url, fromSec, toSec, fps, (a, t, lm, W, H) => {
-      if(!started){ startSession(); started = true; showRefPip(true); setNo = 1; setReps = 0; mode = "exercise"; }
+      if(!started){ canvas.width = W; canvas.height = H; startSession(); startExRec(); started = true; showRefPip(true); setNo = 1; setReps = 0; mode = "exercise"; }
       follow.push(Math.round(refVideo.currentTime*10)/10);
       modes.push(mode);
       if(mode !== "exercise") return;
       const f = exerciseStep(a, t, lm, W, H); for(const k in f) flagged[k] = (flagged[k] || 0) + 1;
+      ctx.clearRect(0, 0, W, H); draw(lm, f, W, H); drawExRec();
     });
     const rec = endSession(); mode = "idle";
     return {reps: repCount, flaggedFrames: flagged, said: [...said], log: [...$("log").children].map(li => li.textContent).reverse(), summary: rec && summaryText(rec), follow: follow.filter((x,i) => i % 60 === 0), modes: [...new Set(modes)], setNo, setReps};
