@@ -109,7 +109,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 <div class="wrap">
   <header>
     <h1>Kontrola domácího cvičení</h1>
-    <p>Terapeut nahraje, jak se cvik dělá správně. Pacient pak cvičí doma před kamerou a hned slyší, co dělá jinak.</p>
+    <p>Terapeut nahraje, jak se cvik dělá správně. Pacient pak cvičí doma před kamerou a hned slyší, co dělá jinak. <a href="terapeut.html">Přehled pro terapeuta</a></p>
   </header>
 
   <div class="modes" role="tablist">
@@ -146,6 +146,9 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 
       <section id="panelEx">
         <h2 id="exTitle">Cvičení</h2>
+        <label class="field">Jméno pacienta (uvidí ho terapeut)
+          <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
+        </label>
         <div class="reps"><b id="repCount">0</b><span>opakování</span></div>
         <div class="row">
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
@@ -283,6 +286,9 @@ function setMode(m){
   } else if(landmarker) setStatus("", "Připraveno. Nahraj vzor kamerou nebo z videa.");
 }
 document.querySelectorAll(".modes button").forEach(b => b.onclick = () => { stopAll(); setMode(b.dataset.mode); });
+try{ $("patient").value = localStorage.getItem("fyzio-patient") || ""; }catch(e){}
+$("patient").onchange = () => { try{ localStorage.setItem("fyzio-patient", $("patient").value.trim()); }catch(e){} };
+
 // Výchozí je přední kamera, ať cvičící vidí displej. Volba se pamatuje v prohlížeči.
 function setRear(v){ $("rearCam").checked = $("rearCam2").checked = v; try{ localStorage.setItem("fyzio-rear", v ? "1" : "0"); }catch(e){} }
 try{ const v = localStorage.getItem("fyzio-rear"); if(v) $("rearCam").checked = $("rearCam2").checked = v === "1"; }catch(e){}
@@ -495,7 +501,7 @@ function endSession(){
   const s = sess; sess = null;
   if(!s || !s.reps.length) return null;
   const full = s.reps.filter(r => r.full);
-  const rec = {id: s.id, ex: s.ex, primary: s.primary, date: s.date, dur: Math.round((performance.now() - s.t0)/1000),
+  const rec = {id: s.id, patient: $("patient").value.trim() || "Pacient", ex: s.ex, primary: s.primary, date: s.date, dur: Math.round((performance.now() - s.t0)/1000),
     reps: full.length, incomplete: s.reps.length - full.length,
     good: full.filter(r => !r.errors.length && !r.notes.length).length,
     score: full.length ? Math.round(full.reduce((x,r) => x + r.score, 0) / full.length) : 0,
@@ -522,10 +528,17 @@ function rangeDelta(rec){
 }
 function weekCount(ex){ const from = Date.now() - 7*864e5; return loadHistory().filter(x => x.ex === ex && Date.parse(x.date) >= from).length; }
 const EFFORT = ["lehké", "akorát", "těžké"];
+// Odkaz pro přehled terapeuta: data jsou za #, prohlížeč je na server neposílá.
+function shareLink(rec){
+  const d = {v:1, id:rec.id, p:rec.patient || "Pacient", ex:rec.ex, pr:rec.primary, d:rec.date, du:rec.dur, r:rec.reps, i:rec.incomplete,
+    g:rec.good, sc:rec.score, rg:rec.bestRange, e:rec.errors, pa:rec.pain, ef:rec.effort};
+  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(d)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  return new URL("terapeut.html#s=" + b64, location.href).href;
+}
 function summaryText(rec){
   const jn = JMAP[rec.primary]?.name.toLowerCase() || "hlavní kloub";
   const dl = rangeDelta(rec), lines = [
-    `Kinisi - cvičení: ${rec.ex}`,
+    `Kinisi - cvičení: ${rec.ex} (${rec.patient || "Pacient"})`,
     `${fmtDate(rec.date)}, délka ${fmtDur(rec.dur)}`,
     `Opakování: ${rec.reps} (správně ${rec.good})${rec.incomplete ? `, nedokončená: ${rec.incomplete}` : ""}, skóre ${rec.score} %`
   ];
@@ -535,6 +548,7 @@ function summaryText(rec){
   lines.push(`Za posledních 7 dní cvičeno: ${weekCount(rec.ex)}×`);
   if(rec.pain != null) lines.push(`Bolest: ${rec.pain}/10`);
   if(rec.effort != null) lines.push(`Náročnost: ${EFFORT[rec.effort]}`);
+  lines.push("", "Do přehledu terapeuta: " + shareLink(rec));
   return lines.join("\n");
 }
 function el(tag, props = {}, ...kids){ const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; }

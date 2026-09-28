@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kinisi - přehled terapeuta</title>
+<meta name="theme-color" content="#333333">
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/logo-kinisi.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Stejné tokeny jako aplikace pacienta (barvy kinisi.cz) */
+:root{
+  --bg:#F4F4F4; --surface:#FFFFFF; --ink:#212121; --muted:#666666; --line:#DBDBDB; --grid:#ECECEC;
+  --brand:#37CA8A; --top:#333333; --top-ink:#FFFFFF; --accent-ink:#0E2A1D;
+  --good:#1E8C5C; --good-bg:#E3F5EC; --warn:#9A6200; --warn-bg:#FCF1DC; --bad:#C0392B; --bad-bg:#FBE7E4; --none-bg:#EFEFEF;
+  --line-series:#1E9E68;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E; --grid:#303C48;
+    --top:#15151C; --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A; --none-bg:#2E3A46;
+    --line-series:#27A870;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E; --grid:#303C48;
+  --top:#15151C; --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A; --none-bg:#2E3A46;
+  --line-series:#27A870;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5}
+a{color:inherit}
+.topbar{background:var(--top);color:var(--top-ink);font-size:.85rem;font-weight:500;text-align:center;padding:8px 16px}
+.brandbar{background:var(--surface);border-bottom:3px solid var(--brand)}
+.brandbar .in{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.brandbar img{height:52px;width:auto;display:block}
+.brandbar a{font-size:.9rem;color:var(--muted)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .brandbar img{filter:invert(1)} }
+:root[data-theme="dark"] .brandbar img{filter:invert(1)}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:clamp(1.6rem,4.2vw,2.4rem);font-weight:300;line-height:1.1;margin:0 0 6px}
+.lead{margin:0 0 16px;color:var(--muted);max-width:70ch}
+.note{font-size:.85rem;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:10px 12px;margin-bottom:16px}
+.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.panel h2{font-size:1.15rem;font-weight:500;margin:0 0 10px}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-weight:500;padding:9px 14px;border-radius:6px;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--accent-ink);font-weight:700}
+.btn:focus-visible,input:focus-visible,.pt:focus-visible,.tabs button:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:.9rem}
+.import{display:grid;gap:8px;margin-bottom:14px}
+.plist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pt{width:100%;text-align:left;display:grid;gap:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;padding:10px 12px;border-radius:8px;cursor:pointer}
+.pt[aria-current="true"]{border-color:var(--brand);box-shadow:inset 3px 0 0 var(--brand)}
+.pt b{font-weight:500}
+.pt small{color:var(--muted);font-size:.82rem}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:2px 9px;border-radius:999px;width:max-content}
+.badge.good{background:var(--good-bg);color:var(--good)} .badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)} .badge.none{background:var(--none-bg);color:var(--muted)}
+.empty{color:var(--muted);font-size:.95rem}
+.dhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.dhead h2{margin:0;font-size:1.5rem;font-weight:300}
+.reasons{margin:0 0 12px;padding-left:18px;color:var(--muted);font-size:.92rem}
+.auto{background:var(--bg);border-radius:8px;padding:12px 14px;margin:0 0 16px;font-size:.95rem}
+.auto strong{display:block;font-weight:500;margin-bottom:4px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.tile span{display:block;color:var(--muted);font-size:.8rem}
+.tile b{font-size:1.6rem;font-weight:300;line-height:1.2;font-variant-numeric:tabular-nums}
+.tile i{display:block;font-style:normal;font-size:.82rem;color:var(--muted)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.tabs button{border:1px solid var(--line);background:var(--bg);color:var(--muted);font:inherit;font-weight:500;padding:6px 12px;border-radius:6px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--brand);border-color:var(--brand);color:var(--accent-ink)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:16px}
+.chart{border:1px solid var(--line);border-radius:8px;padding:10px 12px;position:relative}
+.chart h3{font-size:.9rem;font-weight:500;margin:0 0 4px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .axis{fill:var(--muted);font-size:10px;font-family:inherit}
+.chart .grid{stroke:var(--grid);stroke-width:1}
+.chart .series{fill:none;stroke:var(--line-series);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .dot{fill:var(--line-series);stroke:var(--surface);stroke-width:2}
+.chart .hit{fill:transparent;cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.8rem;padding:4px 8px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%)}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tscroll{overflow-x:auto;margin-bottom:16px}
+h3.sec{font-size:1rem;font-weight:500;margin:16px 0 8px}
+.trend.down{color:var(--good);font-weight:700} .trend.up{color:var(--bad);font-weight:700}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="topbar">Kinisi - centrum fyzioterapie</div>
+<div class="brandbar"><div class="in"><img src="assets/logo-kinisi.svg" alt="Kinisi - centrum fyzioterapie" width="170" height="65"><a href="./">Aplikace pro pacienta</a></div></div>
+<div class="wrap">
+  <h1>Přehled pro terapeuta</h1>
+  <p class="lead">Kdo cvičí, jak často a jestli se mu daří. Semafor upozorní na pacienty, kterým se máte věnovat.</p>
+  <div class="note">Prototyp: data se zatím ukládají jen v tomto prohlížeči. Pacient po cvičení pošle souhrn s odkazem, po jeho otevření se cvičení přidá sem. Po napojení na server se budou data načítat sama.</div>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Pacienti</h2>
+      <div class="import">
+        <input type="text" id="linkIn" placeholder="Vložte odkaz ze zprávy od pacienta">
+        <div class="row">
+          <button class="btn primary" id="btnImport">Přidat cvičení</button>
+          <button class="btn" id="btnDemo">Ukázková data</button>
+        </div>
+        <div id="importMsg" class="empty" role="status"></div>
+      </div>
+      <ul class="plist" id="plist"></ul>
+    </aside>
+
+    <main class="panel" id="detail">
+      <p class="empty">Vyberte pacienta vlevo.</p>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ---------- úložiště (zatím v prohlížeči; pro server stačí vyměnit tyto 3 funkce) ---------- */
+const KEY = "kinisi-therapist-v1";
+function loadAll(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } }
+function saveAll(list){ try{ localStorage.setItem(KEY, JSON.stringify(list)); }catch(e){} }
+function addSessions(items){
+  const all = loadAll(), ids = new Set(all.map(s => s.id + "|" + s.p));
+  let added = 0;
+  for(const s of items){
+    const k = s.id + "|" + s.p;
+    const i = all.findIndex(x => x.id + "|" + x.p === k);
+    if(i >= 0) all[i] = s; else { all.push(s); added++; }  // znovu poslaný souhrn (např. s doplněnou bolestí) přepíše starší
+  }
+  saveAll(all);
+  return added;
+}
+
+/* ---------- import z odkazu #s=... ---------- */
+function decode(b64){
+  b64 = b64.replace(/-/g,"+").replace(/_/g,"/"); while(b64.length % 4) b64 += "=";
+  const bin = atob(b64), bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const d = JSON.parse(new TextDecoder().decode(bytes));
+  if(d.v !== 1 || !d.id || !d.ex) throw new Error("bad");
+  return d;
+}
+function importFrom(text){
+  const m = String(text).match(/#s=([A-Za-z0-9_-]+)/);
+  if(!m) throw new Error("V textu není odkaz na cvičení.");
+  return decode(m[1]);
+}
+const $ = id => document.getElementById(id);
+function msg(t){ $("importMsg").textContent = t; }
+$("btnImport").onclick = () => {
+  try{
+    const s = importFrom($("linkIn").value);
+    const added = addSessions([s]);
+    msg(added ? `Přidáno: ${s.p}, ${s.ex}.` : `Aktualizováno: ${s.p}, ${s.ex}.`);
+    $("linkIn").value = ""; selected = s.p; render();
+  }catch(e){ msg(e.message.startsWith("V textu") ? e.message : "Odkaz se nepodařilo přečíst."); }
+};
+if(location.hash.startsWith("#s=")){
+  try{ const s = importFrom(location.hash); addSessions([s]); window.__imported = s; }catch(e){ window.__importErr = true; }
+  history.replaceState(null, "", location.pathname);
+}
+
+/* ---------- ukázková data (vymyšlení pacienti) ---------- */
+$("btnDemo").onclick = () => {
+  const out = [], day = 864e5, now = Date.now();
+  const mk = (p, dAgo, o) => ({v:1, id: now - dAgo*day + Math.round(Math.random()*1e3), p, ex:"Dřep", pr:"hip", d: new Date(now - dAgo*day).toISOString(), du: 240, i:0, ...o});
+  // Jana: cvičí pravidelně, zlepšuje se, chyba s koleny mizí
+  [13,12,10,9,8,6,5,3,2,1].forEach((a, k) => out.push(mk("Ukázka - Jana", a, {r:8, g:3+Math.round(k/2), sc:62+k*3, rg:112+k*2, e: k < 6 ? {"Kolena drž nad nártem": 5-Math.floor(k/1.5)} : (k < 8 ? {"Kolena drž nad nártem": 1} : {}), pa: k < 4 ? 3 : 2, ef: 1})));
+  // Petr: na začátku cvičil, 5 dní nic
+  [14,12,11,8,6].forEach((a, k) => out.push(mk("Ukázka - Petr", a, {r:6, g:2, sc:58+k, rg:100+k, e:{"Víc se předkloň":3, "Nezakláněj hlavu":2}, pa:2, ef:2})));
+  // Eva: cvičí, ale roste bolest a klesá rozsah
+  [9,8,7,5,4,3,1].forEach((a, k) => out.push(mk("Ukázka - Eva", a, {r:8, g:5-Math.floor(k/2), sc:84-k*4, rg:124-k*3, e: k > 2 ? {"Neodlepuj paty": k} : {}, pa: 2+k, ef: k > 3 ? 2 : 1})));
+  addSessions(out); selected = null; render(); msg("Načtena ukázková data (vymyšlení pacienti).");
+};
+
+/* ---------- vyhodnocení ---------- */
+const DAY = 864e5, NOISE = 4;
+const fmtD = iso => new Date(iso).toLocaleDateString("cs-CZ", {day:"numeric", month:"numeric"});
+const fmtDT = iso => new Date(iso).toLocaleString("cs-CZ", {day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"});
+const JOINT = {knee:"koleno", hip:"kyčel", sh:"rameno", el:"loket", trunk:"trup"};
+const avg = a => a.length ? a.reduce((x,y) => x+y, 0) / a.length : null;
+const within = (list, days) => list.filter(s => Date.parse(s.d) >= Date.now() - days*DAY);
+function byPatient(){
+  const m = new Map();
+  for(const s of loadAll()){ if(!m.has(s.p)) m.set(s.p, []); m.get(s.p).push(s); }
+  for(const l of m.values()) l.sort((a,b) => Date.parse(a.d) - Date.parse(b.d));
+  return m;
+}
+function errorShares(list){  // podíl opakování s danou chybou
+  const reps = list.reduce((x,s) => x + s.r + (s.i || 0), 0) || 1, out = {};
+  for(const s of list) for(const [k,n] of Object.entries(s.e || {})) out[k] = (out[k] || 0) + n;
+  for(const k in out) out[k] = Math.round(out[k] / reps * 100);
+  return out;
+}
+function evaluate(list){
+  const r = [];  // [úroveň, důvod]; 2 = červená, 1 = oranžová
+  if(!list.length) return {level:-1, reasons:[]};
+  const last = list[list.length-1];
+  const since = Math.floor((Date.now() - Date.parse(last.d)) / DAY);
+  if(since >= 3) r.push([2, `${since} dní necvičil${since >= 5 ? " (vypadl z programu?)" : ""}`]);
+  if(last.pa != null && last.pa >= 6) r.push([2, `Bolest ${last.pa}/10 při posledním cvičení`]);
+  const sc = list.map(s => s.sc);
+  if(sc.length >= 4){
+    const a = avg(sc.slice(-3)), b = avg(sc.slice(-6, -3));
+    if(b != null && a <= b - 15) r.push([2, `Skóre klesá (${Math.round(b)} → ${Math.round(a)} %)`]);
+  }
+  const pains = list.filter(s => s.pa != null).map(s => s.pa);
+  if(pains.length >= 3 && pains[pains.length-1] >= pains[pains.length-3] + 2 && !(last.pa >= 6)) r.push([1, `Bolest roste (${pains[pains.length-3]} → ${pains[pains.length-1]}/10)`]);
+  const wk = within(list, 7).length;
+  const started = Math.floor((Date.now() - Date.parse(list[0].d)) / DAY);
+  if(since < 3 && started >= 6 && wk < 3) r.push([1, `Cvičí málo (${wk}× za 7 dní)`]);
+  for(const [k, pct] of Object.entries(errorShares(list.slice(-3)))) if(pct >= 40) r.push([1, `Opakuje chybu „${k}“ (${pct} % opakování)`]);
+  const rg = list.filter(s => s.rg != null);
+  if(rg.length >= 3){
+    const best = Math.max(...rg.slice(0, -1).map(s => s.rg)), cur = rg[rg.length-1].rg;
+    if(cur <= best - 10) r.push([1, `Rozsah klesl o ${best - cur}° pod své maximum`]);
+  }
+  const level = r.length ? Math.max(...r.map(x => x[0])) : 0;
+  return {level, reasons: r.sort((a,b) => b[0]-a[0]).map(x => x[1])};
+}
+const LEVEL = {"-1":["none","–","Bez dat"], 0:["good","✓","Daří se"], 1:["warn","!","Pozor"], 2:["bad","✕","Řešit"]};
+function badge(level){ const [c,i,t] = LEVEL[level]; const b = document.createElement("span"); b.className = "badge " + c; b.textContent = `${i} ${t}`; return b; }
+
+function autoSummary(name, list){
+    const l14 = within(list, 14), parts = [];
+  parts.push(`Za posledních 14 dní cvičil(a) ${l14.length}×${l14.length ? ` (naposledy ${fmtD(list[list.length-1].d)})` : ""}.`);
+  const exs = [...new Set(list.map(s => s.ex))];
+  for(const ex of exs){
+    const l = list.filter(s => s.ex === ex), h = Math.ceil(l.length/2);
+    const a = l.slice(0, h), b = l.slice(h);
+    if(l.length < 2){ parts.push(`${ex}: zatím jedno měření, skóre ${l[0].sc} %.`); continue; }
+    const s1 = Math.round(avg(a.map(s => s.sc))), s2 = Math.round(avg(b.map(s => s.sc)));
+    let t = `${ex}: skóre ${s1} → ${s2} %`;
+    const r1 = a.filter(s => s.rg != null), r2 = b.filter(s => s.rg != null);
+    if(r1.length && r2.length){
+      const d = Math.round(avg(r2.map(s => s.rg)) - avg(r1.map(s => s.rg)));
+      t += Math.abs(d) < NOISE ? ", rozsah beze změny" : `, rozsah ${d > 0 ? "+" : ""}${d}°`;
+    }
+    const e1 = errorShares(a), e2 = errorShares(b);
+    const errs = [...new Set([...Object.keys(e1), ...Object.keys(e2)])].map(k => [k, e1[k] || 0, e2[k] || 0]).sort((x,y) => Math.max(y[1],y[2]) - Math.max(x[1],x[2]));
+    for(const [k, p1, p2] of errs.slice(0, 2)){
+      if(p2 <= p1 - 10) t += `; chyba „${k}“ ubývá (${p1} → ${p2} %)`;
+      else if(p2 >= p1 + 10) t += `; chyba „${k}“ přibývá (${p1} → ${p2} %)`;
+      else if(p2 >= 20) t += `; přetrvává „${k}“ (${p2} %)`;
+    }
+    parts.push(t + ".");
+  }
+  const pa = list.filter(s => s.pa != null);
+  if(pa.length) parts.push(`Poslední bolest ${pa[pa.length-1].pa}/10.`);
+  const ev = evaluate(list);
+  if(ev.level === 0 && list.length >= 4) parts.push("Doporučení: zvážit zvýšení obtížnosti.");
+  if(ev.level === 2) parts.push("Doporučení: ozvat se pacientovi.");
+  return parts.join(" ");
+}
+
+/* ---------- graf: jedna řada v čase, mřížka, popisek při najetí ---------- */
+function lineChart(title, unit, pts, yMin, yMax){
+  const box = document.createElement("div"); box.className = "chart";
+  const h = document.createElement("h3"); h.textContent = title; box.append(h);
+  if(pts.length < 2){ const p = document.createElement("p"); p.className = "empty"; p.textContent = pts.length ? `Zatím jedno měření: ${pts[0].y} ${unit}` : "Bez dat"; box.append(p); return box; }
+  const W = 300, H = 140, L = 30, R = 8, T = 8, B = 20;
+  const t0 = Date.parse(pts[0].d), t1 = Date.parse(pts[pts.length-1].d) || t0 + 1;
+  if(yMin == null){ const ys = pts.map(p => p.y); const lo = Math.min(...ys), hi = Math.max(...ys), pad = Math.max(5, (hi-lo)*0.2); yMin = Math.floor((lo-pad)/5)*5; yMax = Math.ceil((hi+pad)/5)*5; }
+  const X = d => L + (Date.parse(d) - t0) / Math.max(1, t1 - t0) * (W - L - R);
+  const Y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `${title}: ${pts.map(p => `${fmtD(p.d)} ${p.y} ${unit}`).join(", ")}`);
+  const add = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); if(text != null) e.textContent = text; svg.append(e); return e; };
+  for(let k = 0; k <= 2; k++){
+    const v = yMin + (yMax - yMin) * k / 2, y = Y(v);
+    add("line", {class:"grid", x1:L, x2:W-R, y1:y, y2:y});
+    add("text", {class:"axis", x:L-4, y:y+3, "text-anchor":"end"}, Math.round(v));
+  }
+  add("text", {class:"axis", x:L, y:H-4}, fmtD(pts[0].d));
+  add("text", {class:"axis", x:W-R, y:H-4, "text-anchor":"end"}, fmtD(pts[pts.length-1].d));
+  add("path", {class:"series", d: pts.map((p,i) => `${i ? "L" : "M"}${X(p.d).toFixed(1)},${Y(p.y).toFixed(1)}`).join("")});
+  const dots = pts.map(p => add("circle", {class:"dot", cx:X(p.d), cy:Y(p.y), r:4}));
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true;
+  const hit = add("rect", {class:"hit", x:L, y:0, width:W-L-R, height:H-B});
+  const show = ev => {
+    const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) / r.width * W;
+    let bi = 0; pts.forEach((p,i) => { if(Math.abs(X(p.d) - sx) < Math.abs(X(pts[bi].d) - sx)) bi = i; });
+    dots.forEach((d,i) => d.setAttribute("r", i === bi ? 6 : 4));
+    const p = pts[bi], br = box.getBoundingClientRect();
+    tip.textContent = `${fmtD(p.d)}: ${p.y} ${unit}`; tip.hidden = false;
+    tip.style.left = (r.left - br.left + X(p.d) / W * r.width) + "px"; tip.style.top = (r.top - br.top + Y(p.y) / H * r.height) + "px";
+  };
+  hit.addEventListener("pointermove", show); hit.addEventListener("pointerdown", show);
+  hit.addEventListener("pointerleave", () => { tip.hidden = true; dots.forEach(d => d.setAttribute("r", 4)); });
+  box.append(svg, tip);
+  return box;
+}
+
+/* ---------- vykreslení ---------- */
+let selected = null, selEx = null;
+function el(tag, props = {}, ...kids){ const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; }
+function render(){
+  const m = byPatient(), ul = $("plist"); ul.innerHTML = "";
+  if(!m.size){ ul.append(el("li", {className:"empty", textContent:"Zatím žádná data. Vložte odkaz od pacienta nebo načtěte ukázková data."})); $("detail").innerHTML = '<p class="empty">Vyberte pacienta vlevo.</p>'; return; }
+  const rows = [...m].map(([name, list]) => ({name, list, ev: evaluate(list)})).sort((a,b) => b.ev.level - a.ev.level || a.name.localeCompare(b.name, "cs"));
+  if(!selected || !m.has(selected)) selected = rows[0].name;
+  for(const {name, list, ev} of rows){
+    const last = list[list.length-1];
+    const b = el("button", {className:"pt", type:"button", onclick: () => { selected = name; selEx = null; render(); }},
+      el("b", {textContent: name}), badge(ev.level),
+      el("small", {textContent: `Naposledy ${fmtD(last.d)} · ${within(list, 7).length}× za 7 dní · skóre ${last.sc} %`}));
+    b.setAttribute("aria-current", name === selected);
+    ul.append(el("li", {}, b));
+  }
+  renderDetail(selected, m.get(selected));
+}
+function renderDetail(name, list){
+  const d = $("detail"); d.innerHTML = "";
+  const ev = evaluate(list);
+  d.append(el("div", {className:"dhead"}, el("h2", {textContent: name}), badge(ev.level)));
+  if(ev.reasons.length){ const ul = el("ul", {className:"reasons"}); ev.reasons.forEach(r => ul.append(el("li", {textContent: r}))); d.append(ul); }
+  d.append(el("div", {className:"auto"}, el("strong", {textContent:"Souhrn"}), autoSummary(name, list)));
+
+  const last = list[list.length-1], w7 = within(list, 7), w14 = within(list, 14);
+  const tile = (k, v, sub) => el("div", {className:"tile"}, el("span", {textContent:k}), el("b", {textContent:v}), sub ? el("i", {textContent:sub}) : "");
+  const rg = list.filter(s => s.rg != null);
+  const rgD = rg.length >= 2 ? rg[rg.length-1].rg - rg[0].rg : null;
+  d.append(el("div", {className:"tiles"},
+    tile("Cvičeno za 7 dní", `${w7.length}×`, `${w14.length}× za 14 dní`),
+    tile("Poslední skóre", `${last.sc} %`, w7.length ? `průměr 7 dní ${Math.round(avg(w7.map(s => s.sc)))} %` : ""),
+    tile("Rozsah od začátku", rgD == null ? "–" : `${rgD > 0 ? "+" : ""}${rgD}°`, rg.length ? `teď ${rg[rg.length-1].rg}°` : ""),
+    tile("Poslední bolest", last.pa == null ? "–" : `${last.pa}/10`, "")));
+
+  const exs = [...new Set(list.map(s => s.ex))];
+  if(!selEx || !exs.includes(selEx)) selEx = exs[0];
+  if(exs.length > 1){
+    const tabs = el("div", {className:"tabs", role:"tablist"});
+    for(const ex of exs){ const b = el("button", {type:"button", role:"tab", textContent: ex, onclick: () => { selEx = ex; renderDetail(name, list); }}); b.setAttribute("aria-selected", ex === selEx); tabs.append(b); }
+    d.append(tabs);
+  }
+  const l = list.filter(s => s.ex === selEx), jn = JOINT[l[0].pr] || "hlavní kloub";
+  d.append(el("h3", {className:"sec", textContent: `${selEx}: vývoj`}));
+  d.append(el("div", {className:"charts"},
+    lineChart("Skóre provedení", "%", l.map(s => ({d:s.d, y:s.sc})), 0, 100),
+    lineChart(`Rozsah pohybu (${jn})`, "°", l.filter(s => s.rg != null).map(s => ({d:s.d, y:s.rg}))),
+    lineChart("Bolest (0-10)", "/10", l.filter(s => s.pa != null).map(s => ({d:s.d, y:s.pa})), 0, 10)));
+
+  const h = Math.ceil(l.length/2), e1 = errorShares(l.slice(0, h)), e2 = errorShares(l.slice(h));
+  const keys = [...new Set([...Object.keys(e1), ...Object.keys(e2)])];
+  d.append(el("h3", {className:"sec", textContent:"Chyby (podíl opakování s chybou)"}));
+  if(!keys.length) d.append(el("p", {className:"empty", textContent:"Žádné chyby."}));
+  else {
+    const t = el("table"), tb = el("tbody");
+    t.append(el("thead", {}, el("tr", {}, el("th", {textContent:"Chyba"}), el("th", {className:"num", textContent:"První polovina"}), el("th", {className:"num", textContent:"Druhá polovina"}), el("th", {textContent:"Vývoj"}))));
+    for(const k of keys.sort((a,b) => (e2[b]||0) - (e2[a]||0))){
+      const a = e1[k] || 0, b = e2[k] || 0, diff = b - a;
+      const tr = diff <= -10 ? ["down","↓ ubývá"] : diff >= 10 ? ["up","↑ přibývá"] : ["","beze změny"];
+      tb.append(el("tr", {}, el("td", {textContent:k}), el("td", {className:"num", textContent:a + " %"}), el("td", {className:"num", textContent:b + " %"}), el("td", {}, el("span", {className:"trend " + tr[0], textContent: tr[1]}))));
+    }
+    t.append(tb); d.append(el("div", {className:"tscroll"}, t));
+  }
+
+  d.append(el("h3", {className:"sec", textContent:"Jednotlivá cvičení"}));
+  const EF = ["lehké","akorát","těžké"];
+  const t = el("table"), tb = el("tbody");
+  t.append(el("thead", {}, el("tr", {}, ...["Kdy","Opak.","Správně","Skóre","Rozsah","Bolest","Náročnost","Chyby"].map((x,i) => el("th", {className: i && i < 6 ? "num" : "", textContent:x})))));
+  for(const s of [...l].reverse()){
+    const errs = Object.entries(s.e || {}).map(([k,n]) => `${k} ${n}×`).join(", ") || "–";
+    tb.append(el("tr", {}, el("td", {textContent: fmtDT(s.d)}), el("td", {className:"num", textContent: s.r + (s.i ? ` (+${s.i})` : "")}),
+      el("td", {className:"num", textContent: s.g}), el("td", {className:"num", textContent: s.sc + " %"}), el("td", {className:"num", textContent: s.rg == null ? "–" : s.rg + "°"}),
+      el("td", {className:"num", textContent: s.pa == null ? "–" : s.pa}), el("td", {textContent: s.ef == null ? "–" : EF[s.ef]}), el("td", {textContent: errs})));
+  }
+  t.append(tb); d.append(el("div", {className:"tscroll"}, t));
+  d.append(el("div", {className:"row"}, el("button", {className:"btn", type:"button", textContent:"Smazat data pacienta", onclick: () => {
+    if(!confirm(`Opravdu smazat všechna cvičení pacienta ${name} z tohoto prohlížeče?`)) return;
+    saveAll(loadAll().filter(s => s.p !== name)); selected = null; render();
+  }})));
+}
+if(window.__imported){ selected = window.__imported.p; msg(`Přidáno: ${window.__imported.p}, ${window.__imported.ex}.`); }
+if(window.__importErr) msg("Odkaz se nepodařilo přečíst.");
+render();
+</script>
+</body>
+</html>
