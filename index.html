@@ -3,53 +3,68 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kontrola cvičení - prototyp</title>
+<title>Kinisi - kontrola cvičení</title>
+<meta name="theme-color" content="#333333">
+<link rel="icon" href="assets/logo-kinisi.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
+/* Barvy podle kinisi.cz: zelená #37CA8A, tmavý pruh #333, Roboto */
 :root{
-  --bg:#EDF2F4; --surface:#FFFFFF; --ink:#16242F; --muted:#5B6B78; --line:#D5DEE3;
-  --accent:#2B4FD8; --accent-ink:#FFFFFF; --good:#178A5B; --bad:#D8412F; --warn:#B87812;
+  --bg:#F4F4F4; --surface:#FFFFFF; --ink:#212121; --muted:#666666; --line:#DBDBDB;
+  --brand:#37CA8A; --top:#333333; --top-ink:#FFFFFF;
+  --accent:#37CA8A; --accent-ink:#0E2A1D; --good:#1E8C5C; --bad:#D8412F; --warn:#B87812;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0F1820; --surface:#172430; --ink:#E6EDF2; --muted:#93A4B1; --line:#2A3A47;
-    --accent:#7C95FF; --accent-ink:#0F1820; --good:#3CC58A; --bad:#FF6B5A; --warn:#F0B24A;
+    --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E;
+    --top:#15151C; --accent:#37CA8A; --accent-ink:#0E2A1D; --good:#37CA8A; --bad:#FF6B5A; --warn:#F0B24A;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0F1820; --surface:#172430; --ink:#E6EDF2; --muted:#93A4B1; --line:#2A3A47;
-  --accent:#7C95FF; --accent-ink:#0F1820; --good:#3CC58A; --bad:#FF6B5A; --warn:#F0B24A;
+  --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E;
+  --top:#15151C; --accent:#37CA8A; --accent-ink:#0E2A1D; --good:#37CA8A; --bad:#FF6B5A; --warn:#F0B24A;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5}
+.topbar{background:var(--top);color:var(--top-ink);font-size:.85rem;font-weight:500;text-align:center;padding:8px 16px;letter-spacing:.02em}
+.brandbar{background:var(--surface);border-bottom:3px solid var(--brand)}
+.brandbar .in{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px}
+.brandbar img{height:52px;width:auto;display:block}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .brandbar img{filter:invert(1)} }
+:root[data-theme="dark"] .brandbar img{filter:invert(1)}
 .wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
-header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0 0 6px}
+header h1{font-size:clamp(1.6rem,4.2vw,2.4rem);font-weight:300;letter-spacing:-.01em;line-height:1.1;margin:0 0 6px}
 header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
-.modes{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:5px;width:max-content;max-width:100%;margin-bottom:16px}
-.modes button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;padding:9px 16px;border-radius:10px;cursor:pointer}
-.modes button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.modes{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px;width:max-content;max-width:100%;margin-bottom:16px}
+.modes button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;padding:9px 16px;border-radius:6px;cursor:pointer}
+.modes button[aria-selected="true"]{background:var(--brand);color:var(--accent-ink)}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 @media (max-width:860px){.layout{grid-template-columns:1fr}}
-.cam{position:relative;width:100%;aspect-ratio:16/9;max-height:72vh;background:#0b1117;border-radius:18px;overflow:hidden}
+.cam{position:relative;width:100%;aspect-ratio:16/9;max-height:72vh;background:#1D1D26;border-radius:10px;overflow:hidden}
 .cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .cam.mirror video,.cam.mirror canvas{transform:scaleX(-1)}
-.status{position:absolute;left:12px;right:12px;bottom:12px;padding:14px 18px;border-radius:14px;font-weight:800;font-size:clamp(1.05rem,3.2vw,1.6rem);line-height:1.2;color:#fff;background:rgba(20,30,40,.78);transition:background-color .2s}
+.status{position:absolute;left:12px;right:12px;bottom:12px;padding:14px 18px;border-radius:8px;font-weight:700;font-size:clamp(1.05rem,3.2vw,1.6rem);line-height:1.2;color:#fff;background:rgba(29,29,38,.8);transition:background-color .2s}
 .status.good{background:var(--good)} .status.bad{background:var(--bad)} .status.warn{background:var(--warn)}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .status.good, :root:not([data-theme="light"]) .status.bad, :root:not([data-theme="light"]) .status.warn{color:#0F1820} }
-.countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(5rem,20vw,11rem);font-weight:800;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.5);pointer-events:none}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px}
-.panel h2{font-size:1.1rem;margin:0 0 8px}
+.countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(5rem,20vw,11rem);font-weight:300;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.5);pointer-events:none}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.panel h2{font-size:1.15rem;font-weight:500;margin:0 0 8px}
 .panel p{margin:0 0 14px;color:var(--muted);font-size:.95rem}
 .field{display:block;margin:0 0 12px;font-size:.9rem;font-weight:500}
-.field input[type=text]{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.field input[type=text]{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-weight:700;padding:11px 16px;border-radius:12px;cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-weight:500;padding:11px 16px;border-radius:6px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.tips{margin:14px 0 0;padding:12px 0 0;border-top:1px solid var(--line);font-size:.9rem}
+.tips h3{font-size:.95rem;font-weight:500;margin:0 0 6px}
+.tips ul{margin:0;padding-left:18px;color:var(--muted)}
+.tips li{margin:2px 0}
+.tips li b{color:var(--ink);font-weight:500}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn:focus-visible,.modes button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .upload{display:inline-block;font-size:.9rem;color:var(--muted);margin:4px 0 12px}
@@ -59,7 +74,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .refinfo strong{display:block;font-size:1rem}
 .err{color:var(--bad);font-weight:600}
 .reps{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
-.reps b{font-size:3.4rem;font-weight:800;line-height:1;letter-spacing:-.03em}
+.reps b{font-size:3.4rem;font-weight:300;line-height:1;letter-spacing:-.03em}
 .reps span{color:var(--muted)}
 .tol{margin-bottom:12px;font-size:.9rem}
 .tol input{width:100%}
@@ -77,6 +92,8 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 </style>
 </head>
 <body>
+<div class="topbar">Kinisi - centrum fyzioterapie</div>
+<div class="brandbar"><div class="in"><img src="assets/logo-kinisi.svg" alt="Kinisi - centrum fyzioterapie" width="170" height="65"></div></div>
 <div class="wrap">
   <header>
     <h1>Kontrola domácího cvičení</h1>
@@ -122,6 +139,9 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
           <button class="btn" id="btnExStop" disabled>Konec</button>
         </div>
+        <div class="row" id="demoRow" hidden>
+          <button class="btn" id="btnDemo">Přehrát ukázku od terapeuta</button>
+        </div>
         <div class="tol">
           <label for="tol">Tolerance odchylky: <output id="tolOut">15°</output></label>
           <input type="range" id="tol" min="8" max="30" value="15">
@@ -130,6 +150,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
         <label class="check"><input type="checkbox" id="rearCam2" checked> Zadní kamera (točím někoho jiného)</label>
         <ul class="joints" id="joints"></ul>
         <ul class="log" id="log"></ul>
+        <div class="tips" id="tips" hidden></div>
       </section>
     </aside>
   </div>
@@ -141,7 +162,9 @@ import { PoseLandmarker, FilesetResolver } from "./vendor/mediapipe/vision_bundl
 const $ = id => document.getElementById(id);
 const video = $("video"), canvas = $("overlay"), ctx = canvas.getContext("2d"), cam = $("cam");
 const statusEl = $("status");
-const DEFAULT_REF = {"name":"Dřep (vzor z videa)","primary":"hip","start":171.2,"far":46.4,"present":["knee","hip","sh","el","trunk"],"frames":[[172.4,174.7,3.7,158.2,3.0],[172.0,173.4,3.9,158.1,4.2],[171.8,172.3,2.8,160.1,5.4],[172.3,171.6,1.3,163.2,6.6],[172.4,170.9,1.6,162.3,7.4],[173.2,169.9,1.9,161.1,8.6],[172.0,167.5,1.5,160.3,10.1],[171.1,165.1,0.9,159.0,11.9],[170.2,163.5,1.4,156.2,13.3],[168.9,161.3,1.0,152.9,14.7],[168.9,161.1,1.4,148.5,15.0],[168.8,159.6,1.8,143.4,16.4],[169.2,159.1,0.1,140.7,17.4],[169.3,158.3,2.1,140.6,18.5],[169.8,157.5,4.7,144.2,19.4],[171.2,157.2,6.4,144.8,20.1],[170.5,155.3,9.8,146.7,21.2],[169.2,152.3,10.6,144.8,22.6],[167.9,150.3,14.4,143.8,23.6],[168.1,150.1,14.9,141.1,23.8],[167.4,148.7,18.9,143.1,24.3],[167.3,147.0,22.7,143.2,25.2],[166.4,144.4,26.2,144.1,26.5],[165.8,141.9,29.6,145.4,27.9],[165.3,140.7,32.8,145.4,28.7],[164.9,138.8,36.7,146.7,29.9],[164.8,138.0,38.2,146.2,30.5],[164.5,136.8,38.6,144.7,31.1],[164.4,135.3,39.0,141.2,31.8],[163.6,133.4,40.1,139.5,32.7],[161.9,131.1,41.9,138.8,33.5],[160.5,129.8,43.4,138.4,33.7],[159.6,128.5,44.1,137.5,34.2],[158.8,127.9,44.7,136.7,34.2],[158.4,126.4,46.4,133.9,34.7],[156.6,124.9,47.3,133.9,34.9],[154.8,122.9,47.8,134.8,35.3],[154.4,121.9,48.3,135.2,35.6],[153.0,120.4,49.3,135.1,36.1],[151.4,118.2,50.9,135.3,36.7],[149.8,116.7,51.9,135.9,37.1],[149.5,115.7,56.5,139.9,37.8],[147.5,113.3,60.2,141.0,38.7],[145.9,110.9,62.8,142.2,39.7],[147.0,111.2,63.5,142.4,40.0],[146.1,109.8,64.4,141.9,40.6],[144.8,107.9,66.9,141.3,41.1],[146.4,108.4,68.1,140.0,41.9],[147.7,108.1,68.8,137.8,42.6],[149.6,109.0,69.1,137.1,42.6],[151.4,109.8,69.9,136.9,42.8],[147.1,106.9,70.8,135.3,43.0],[145.2,104.8,72.5,135.3,43.7],[144.6,103.7,73.9,135.2,44.3],[143.9,102.5,74.8,135.7,44.7],[144.8,102.8,75.5,135.1,45.1],[145.9,103.5,77.1,135.3,45.3],[144.2,102.4,77.3,135.3,45.5],[146.0,102.7,77.9,134.4,46.0],[146.0,102.3,78.5,134.3,46.3],[146.2,101.1,80.0,133.8,47.3],[146.9,100.4,80.8,133.6,48.1],[147.2,100.6,80.5,133.5,47.8],[147.0,100.1,81.0,133.3,48.1],[146.9,99.5,81.4,133.2,48.4],[141.5,95.5,82.6,133.1,49.0],[140.6,94.4,82.6,131.4,49.5],[140.9,94.3,82.5,130.8,49.8],[140.9,94.3,81.5,130.6,49.9],[140.8,94.2,80.9,130.1,49.9],[140.9,93.9,81.2,129.5,50.1],[140.4,93.1,82.0,128.5,50.6],[140.0,92.1,83.3,128.2,51.2],[139.7,91.7,83.8,127.8,51.4],[139.3,91.0,84.0,126.5,51.7],[138.9,90.1,84.9,124.6,52.2],[138.6,89.4,87.1,124.6,52.8],[138.0,88.1,88.8,124.3,53.5],[137.5,87.6,88.7,123.7,53.6],[137.4,87.3,88.1,122.1,53.8],[137.8,86.7,89.3,121.8,54.5],[137.2,85.8,89.8,121.7,54.8],[137.3,85.5,89.9,121.3,55.1],[137.0,85.1,90.3,121.4,55.4],[136.9,84.7,91.0,121.2,55.8],[136.9,84.7,90.8,120.6,55.7],[136.6,84.6,90.3,120.2,55.5],[136.4,84.1,90.2,119.7,55.8],[136.1,83.3,91.1,119.6,56.3],[135.2,82.0,92.1,119.0,56.8],[134.7,81.0,93.6,119.8,57.3],[134.4,80.6,93.7,118.9,57.4],[134.1,80.3,93.7,119.1,57.4],[134.3,79.9,94.2,118.1,57.8],[134.0,79.7,94.0,117.9,57.7],[133.9,79.6,93.6,117.9,57.6],[133.5,79.5,93.8,118.3,57.5],[132.7,78.7,95.6,118.5,57.9],[132.6,78.2,96.8,118.6,58.4],[132.5,77.5,97.7,118.8,59.0],[131.6,76.5,99.0,119.5,59.5],[131.1,75.4,100.5,120.5,60.2],[131.5,75.4,100.4,120.5,60.4],[131.5,74.9,100.2,119.4,60.7],[131.7,74.3,101.0,118.7,61.5],[131.5,73.4,102.4,118.2,62.1],[131.4,73.2,102.2,117.2,62.1],[130.5,72.8,101.6,116.5,61.8],[129.4,72.4,101.4,116.2,61.5],[128.6,72.0,101.4,116.1,61.4],[128.0,71.7,101.4,116.2,61.3],[127.7,71.6,101.4,116.2,61.2],[127.2,71.1,101.8,116.3,61.4],[126.9,71.0,101.8,116.2,61.3],[127.0,71.0,101.7,115.9,61.3],[126.4,70.6,101.7,115.8,61.3],[126.1,70.4,101.7,115.7,61.3],[125.7,70.1,102.1,116.1,61.4],[125.8,70.2,102.3,116.1,61.4],[125.6,70.1,102.4,116.1,61.5],[125.5,70.0,102.5,116.0,61.6],[125.7,70.0,102.5,115.7,61.7],[125.6,69.7,102.5,115.5,61.8],[125.3,69.5,102.4,115.4,61.8],[125.0,69.4,102.2,115.1,61.7],[123.9,68.8,102.0,114.6,61.6],[123.5,68.6,101.9,114.4,61.5],[123.5,68.6,102.3,114.6,61.5],[123.2,68.4,102.4,114.5,61.5],[122.4,67.8,102.5,114.1,61.6],[121.8,67.1,102.5,113.9,61.7],[121.5,66.7,102.5,114.0,61.7],[120.9,66.3,102.4,114.0,61.6],[120.7,66.0,102.7,113.7,61.7],[120.5,66.0,102.6,113.4,61.7],[120.4,65.8,102.5,112.7,61.9],[120.4,65.8,102.6,111.5,62.1],[120.8,66.0,101.4,110.0,62.2],[119.9,65.2,99.4,108.7,62.5],[118.6,63.9,98.3,111.4,62.9],[117.6,63.0,96.6,113.3,63.1],[117.0,62.5,94.9,112.8,63.3],[115.7,61.3,93.3,112.3,63.3],[115.2,60.7,92.0,110.5,63.3],[115.3,59.7,92.6,109.4,64.3],[115.1,58.8,93.4,109.2,65.1],[114.9,58.8,93.4,108.6,65.1],[114.8,58.4,94.7,109.4,65.2],[114.4,57.7,95.6,109.6,65.7],[113.9,56.9,96.8,110.1,66.1],[113.2,56.0,97.5,108.9,66.4],[112.3,55.4,97.9,108.5,66.4],[111.6,55.2,98.2,107.9,66.2],[111.6,55.8,98.9,108.4,65.5],[111.5,56.8,100.1,108.9,64.5],[111.4,57.2,100.3,108.7,64.0],[111.3,57.2,100.3,108.3,63.9],[111.2,57.2,100.1,107.8,63.8],[111.1,57.0,100.9,108.0,63.9],[110.9,56.2,102.5,109.0,64.6],[111.0,55.6,103.0,108.7,65.2],[111.1,55.0,103.6,108.8,65.7],[111.0,54.4,104.2,109.1,66.2],[111.2,54.4,104.3,108.9,66.4],[111.3,54.1,104.7,108.8,66.9],[111.5,54.0,104.7,108.3,67.1],[111.7,54.0,105.2,108.2,67.5],[111.8,53.9,106.2,109.3,67.7],[111.9,53.9,106.2,109.4,67.8],[111.8,53.9,106.0,109.7,67.7],[111.7,53.6,106.2,109.7,67.9],[111.5,53.5,106.1,109.4,67.8],[111.3,53.3,106.0,109.0,67.9],[111.0,53.0,106.0,108.5,67.9],[110.6,52.6,106.6,108.5,67.9],[110.4,52.5,107.1,108.4,67.9],[110.4,52.6,107.2,108.3,67.7],[110.8,53.2,107.2,109.2,67.4],[110.8,53.3,107.3,109.1,67.5],[110.8,53.2,107.3,108.7,67.5],[110.7,53.0,107.3,107.6,67.7],[110.7,52.8,107.3,106.9,67.9],[110.6,52.7,107.3,106.5,67.9],[110.5,52.7,107.4,106.5,67.9],[110.5,52.6,107.4,106.4,67.9],[110.4,52.7,107.4,106.4,67.8],[110.4,52.7,107.3,106.5,67.8],[110.3,52.7,107.3,106.7,67.7],[110.3,52.8,107.2,106.6,67.7],[110.3,52.8,107.0,106.4,67.6],[110.3,52.9,106.8,106.3,67.6],[110.4,53.1,106.6,105.9,67.5],[110.4,53.1,106.6,105.8,67.5],[110.3,53.2,106.6,105.7,67.5],[110.4,53.2,106.7,105.7,67.5],[110.4,53.2,107.0,105.9,67.5],[110.5,53.6,107.2,106.5,67.3],[110.6,53.9,107.1,107.0,67.0],[110.7,53.9,107.2,107.1,67.1],[110.7,53.9,107.4,107.5,67.0],[110.7,53.9,107.6,107.9,67.0],[110.5,53.9,107.9,108.5,67.0],[110.5,53.9,108.0,108.5,67.0],[110.5,53.8,108.0,108.3,67.1],[110.5,53.8,107.9,107.9,67.1],[110.5,53.6,107.8,107.4,67.3],[110.5,53.5,107.9,107.1,67.3],[110.4,53.4,108.1,107.2,67.4],[110.2,53.1,108.1,107.0,67.5],[110.1,53.0,108.3,107.1,67.6],[110.3,53.0,108.4,107.1,67.6],[110.5,53.1,108.6,107.1,67.7],[110.5,53.1,108.7,107.2,67.7],[110.6,53.3,108.6,107.3,67.6],[110.4,53.3,108.5,107.3,67.5],[110.2,53.3,108.4,107.1,67.3],[109.9,53.3,108.1,107.0,67.2],[109.7,53.3,107.7,106.8,67.1],[109.4,53.2,107.5,106.8,67.0],[109.3,53.3,107.3,106.9,67.0],[109.0,53.3,106.9,106.8,66.6],[108.5,53.2,107.6,107.9,66.5],[107.9,52.8,108.2,108.5,66.3],[107.3,52.5,108.5,108.7,66.0],[106.9,52.4,108.7,109.0,65.8],[106.6,52.2,109.0,109.9,65.6],[106.0,51.9,109.4,110.6,65.4],[105.0,51.0,110.6,111.4,65.5],[103.8,50.1,111.5,112.0,65.4],[103.2,49.9,111.6,112.2,65.0],[102.2,49.4,111.8,112.3,64.7],[101.8,49.4,111.7,112.6,64.5],[101.8,49.6,111.6,112.8,64.2],[101.2,49.0,112.1,113.7,64.2],[100.6,48.4,112.1,114.1,64.1],[100.2,47.7,112.5,114.6,64.2],[100.1,47.5,112.7,114.9,64.3],[100.0,47.4,112.8,115.4,64.1],[100.3,47.5,112.9,115.9,64.0],[100.0,47.4,113.0,116.4,63.8],[99.8,47.4,113.0,116.8,63.6],[99.5,47.4,112.9,117.5,63.3],[99.5,47.7,112.9,117.7,62.9],[100.1,47.9,113.1,117.8,62.8],[100.6,48.3,113.4,117.7,62.8],[100.5,48.3,113.5,117.5,62.7],[100.6,48.3,113.5,117.5,62.7],[100.4,48.2,113.4,117.5,62.6],[100.2,48.2,113.2,117.6,62.5],[100.2,48.2,113.2,117.6,62.4],[100.3,48.3,113.1,117.7,62.3],[100.4,48.1,113.5,117.9,62.4],[100.7,48.2,113.7,118.2,62.5],[100.8,48.3,113.7,118.5,62.6],[101.4,48.4,113.8,118.3,62.8],[101.7,48.4,113.8,117.8,63.1],[102.2,48.6,113.5,117.4,63.3],[102.5,48.8,113.4,117.1,63.4],[102.6,48.8,113.3,117.0,63.5],[102.6,48.7,113.3,116.8,63.5],[102.6,48.6,113.3,116.7,63.6],[102.6,48.8,113.4,117.3,63.5],[102.6,48.8,113.5,117.3,63.4],[102.3,48.8,113.4,117.0,63.2],[102.1,48.8,113.6,117.1,63.1],[101.9,48.7,114.0,117.7,63.0],[101.9,48.7,114.0,117.6,63.0],[101.9,48.3,114.3,117.6,63.4],[101.8,48.0,115.0,118.1,63.8],[101.7,47.5,115.8,118.8,64.2],[100.9,46.9,115.9,119.1,64.3],[100.2,46.4,115.2,118.5,64.4],[100.1,46.3,115.1,118.2,64.5],[100.1,46.4,115.0,118.3,64.4],[100.1,46.5,115.1,118.7,64.4],[100.1,46.6,115.0,118.5,64.3],[100.5,47.1,114.8,118.3,64.2],[100.6,47.3,114.4,117.9,64.0],[100.6,47.4,114.2,116.8,63.8],[100.5,47.5,113.9,115.6,63.8],[100.6,47.6,113.7,114.6,63.7],[100.6,47.7,113.6,114.0,63.6],[100.5,47.7,113.3,113.6,63.4],[100.5,47.8,113.2,113.5,63.4],[100.3,47.7,113.3,113.6,63.4],[99.8,47.2,113.5,113.2,63.6],[99.5,46.7,113.7,113.0,63.9],[99.3,46.4,113.8,112.7,64.2],[99.4,46.3,113.8,112.1,64.5],[99.5,46.2,113.7,111.8,64.6],[99.6,46.3,113.6,111.8,64.7],[99.9,46.4,113.6,111.9,64.9],[100.2,46.5,113.5,111.9,65.0],[100.2,46.5,113.5,111.9,65.0],[100.2,46.5,113.5,111.9,65.1],[100.3,46.5,113.4,111.9,65.1],[100.4,46.6,113.3,111.8,65.2],[100.5,46.6,113.2,111.8,65.2],[100.6,46.6,113.1,111.3,65.3],[100.7,46.6,113.1,111.0,65.4],[100.7,46.5,113.3,111.0,65.5],[100.6,46.3,113.6,111.2,65.6],[100.5,46.2,113.7,111.6,65.6],[100.5,46.2,113.8,111.8,65.7],[100.3,46.2,113.8,112.1,65.6],[100.4,46.3,113.8,112.1,65.6],[100.4,46.5,113.9,112.1,65.6],[100.4,46.5,114.0,112.0,65.6],[100.2,46.4,113.9,112.0,65.4],[100.1,46.5,113.8,112.1,65.3],[100.2,46.7,114.0,112.5,65.3],[100.2,46.7,114.6,112.7,65.3],[100.4,46.9,115.0,113.0,65.1],[100.7,47.2,115.0,112.4,64.9],[100.8,47.4,114.9,112.1,64.8],[100.8,47.4,115.0,112.4,64.8],[100.8,47.5,115.2,112.6,64.8],[100.9,47.6,115.2,112.4,64.7],[100.8,47.5,115.3,112.5,64.8],[100.6,47.4,115.3,112.6,64.7],[100.6,47.4,115.2,112.5,64.7],[100.6,47.3,115.1,112.4,64.7],[100.7,47.4,115.0,112.4,64.7],[100.8,47.6,114.9,112.5,64.7],[100.9,47.5,115.0,113.1,64.8],[100.8,47.4,115.1,113.0,65.0],[100.8,47.4,115.2,112.8,65.0],[100.9,47.6,115.2,112.2,65.0],[101.0,47.7,115.1,111.9,65.0],[101.1,47.8,115.2,111.8,65.0],[101.0,47.8,115.3,111.7,65.0],[101.0,47.8,115.3,112.0,65.0],[101.0,47.9,115.4,112.5,65.0],[101.2,48.1,115.4,112.5,65.0],[101.3,48.1,115.4,112.7,65.0],[101.5,48.2,115.5,113.0,65.1],[102.0,48.5,115.3,112.8,65.2],[102.6,48.8,114.6,111.9,65.6],[102.7,48.9,114.4,111.9,66.0],[104.0,50.2,113.5,111.6,66.1],[105.7,52.8,111.8,113.9,65.4],[108.7,57.6,106.2,113.2,63.3],[111.5,60.6,104.6,115.3,62.9],[115.5,65.2,99.8,116.9,61.6],[119.6,70.7,91.7,116.9,59.4],[122.5,75.8,85.8,119.6,57.2],[126.1,82.4,72.2,119.2,53.9],[130.9,88.9,61.3,115.8,51.1],[133.2,93.6,50.7,120.1,48.6],[133.0,96.3,44.1,129.4,46.3],[136.1,103.4,33.9,132.7,42.9],[138.2,110.3,25.6,135.8,38.5],[144.7,119.3,19.1,151.1,34.8],[147.2,125.2,7.7,144.8,31.4],[151.1,131.4,4.6,144.6,28.3],[155.3,138.4,2.4,153.1,24.8],[157.9,144.8,2.8,156.9,20.9],[161.1,152.0,0.8,157.4,17.1],[163.8,157.3,0.4,156.3,13.8],[165.9,162.7,2.4,152.9,10.8],[168.5,169.1,3.8,149.6,7.2],[169.9,175.0,6.4,144.1,3.6],[171.8,179.2,7.8,141.6,1.6],[173.7,177.0,9.2,140.6,0.1],[174.0,175.1,7.8,142.6,1.3],[172.0,176.3,6.5,143.9,1.1],[171.4,176.3,5.3,146.5,1.1],[171.5,175.9,4.6,147.6,1.4]],"refDesc":4.7,"reps":1};
+let DEFAULT_REF = null;
+const DEFAULT_REF_URL = "refs/drep.json";
+const DEBUG = new URLSearchParams(location.search).has("debug");
 
 const VIS = 0.5, HOLD = 400, TEMPO = 0.25;
 const JOINTS = [
@@ -149,18 +172,27 @@ const JOINTS = [
   {id:"hip", name:"Kyčel", p:[11,23,25], hi:"Víc se ohni v kyčlích", lo:"Víc propni kyčle"},
   {id:"sh", name:"Rameno", p:[23,11,13], hi:"Paže drž níž", lo:"Zvedni paže výš"},
   {id:"el", name:"Loket", p:[11,13,15], hi:"Víc pokrč lokty", lo:"Propni lokty"},
-  {id:"trunk", name:"Trup", trunk:true, p:[11,23], hi:"Narovnej trup", lo:"Víc se předkloň"}
+  {id:"trunk", name:"Trup", kind:"trunk", p:[11,23], hi:"Narovnej trup", lo:"Víc se předkloň"},
+  // Z komentáře terapeuta: hlava v prodloužení, kolena nepředbíhají střed nártu, neodlepovat chodidla.
+  // lo/hi = null: tento směr odchylky se nehlásí.
+  {id:"head", name:"Hlava", kind:"head", p:[23,11,7], dot:[7], hi:"Nezakláněj hlavu", lo:"Hlavu drž v prodloužení zad"},
+  {id:"shin", name:"Kolena vpřed", kind:"shin", p:[27,25], dot:[25,27], hi:"Kolena drž nad nártem", lo:null},
+  {id:"heel", name:"Chodidla", kind:"heel", p:[29,31], dot:[29], hi:"Neodlepuj paty", lo:"Neodlepuj špičky"}
 ];
 const JMAP = Object.fromEntries(JOINTS.map(j => [j.id, j]));
 const LEFT = [11,13,15,23,25,27], RIGHT = [12,14,16,24,26,28];
-const TO_RIGHT = {11:12,13:14,15:16,23:24,25:26,27:28,29:30,31:32};
-const CONN = [[11,13],[13,15],[11,23],[23,25],[25,27],[27,31],[27,29],[29,31]];
+const TO_RIGHT = {7:8,11:12,13:14,15:16,23:24,25:26,27:28,29:30,31:32};
+const CONN = [[7,11],[11,13],[13,15],[11,23],[23,25],[25,27],[27,31],[27,29],[29,31]];
 
-let landmarker = null, stream = null, mode = "idle", frames = [], REF = null, side = "L";
-let smooth = {}, lastVideoTime = -1;
+let landmarker = null, stream = null, mode = "idle", frames = [], REF = null, side = "L", facing = 0;
+let smooth = {}, lastVideoTime = -1, lastDetectT = 0;
 
 /* ---------- storage ---------- */
-function loadRef(){ try{ const s = localStorage.getItem("fyzio-ref-v2"); if(s) REF = JSON.parse(s); }catch(e){} if(!REF) REF = DEFAULT_REF; }
+async function loadRef(){
+  try{ DEFAULT_REF = await (await fetch(DEFAULT_REF_URL)).json(); }catch(e){}
+  try{ const s = localStorage.getItem("fyzio-ref-v2"); if(s) REF = JSON.parse(s); }catch(e){}
+  if(!REF) REF = DEFAULT_REF;
+}
 function saveRef(){ try{ localStorage.setItem("fyzio-ref-v2", JSON.stringify(REF)); }catch(e){} }
 
 /* ---------- UI helpers ---------- */
@@ -173,14 +205,27 @@ function setStatus(kind, text, hold = 0){
   if(statusEl.textContent !== text) statusEl.textContent = text;
 }
 let lastSpoken = "", lastSpokenT = 0;
+const said = [];
 function speak(text, force = false){
-  if(!$("voice").checked || !("speechSynthesis" in window)) return;
-  const now = performance.now();
+  const now = DEBUG && !video.srcObject ? video.currentTime*1000 : performance.now();
   if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return;
+  if(DEBUG) said.push({t: Math.round(video.currentTime*10)/10, text});
+  if(!$("voice").checked || !("speechSynthesis" in window)) return;
   lastSpoken = text; lastSpokenT = now;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.05;
   speechSynthesis.speak(u);
+}
+function speakAndWait(text, maxMs){
+  return new Promise(res => {
+    if(!$("voice").checked || !("speechSynthesis" in window)){ setTimeout(res, Math.min(maxMs, 3000)); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.0;
+    const done = () => { clearTimeout(to); res(); }, to = setTimeout(res, maxMs);  // iOS občas nepošle onend
+    u.onend = done; u.onerror = done;
+    lastSpoken = text; lastSpokenT = performance.now();
+    speechSynthesis.speak(u);
+  });
 }
 function logLine(text){
   const li = document.createElement("li"); li.textContent = text;
@@ -197,12 +242,28 @@ function renderRefInfo(){
     `Hlídané klouby: ${REF.present.map(id => JMAP[id].name.toLowerCase()).join(", ")}.`;
   el.append(p);
 }
+function renderTips(){
+  const el = $("tips"); el.innerHTML = "";
+  el.hidden = !REF?.tips?.length;
+  if(el.hidden) return;
+  const h = document.createElement("h3"); h.textContent = "Na co si dát pozor"; el.append(h);
+  const ul = document.createElement("ul");
+  for(const tip of REF.tips){
+    const li = document.createElement("li");
+    if(tip.check){ const b = document.createElement("b"); b.textContent = tip.t; li.append(b, " - hlídá aplikace"); }
+    else li.textContent = tip.t;
+    ul.append(li);
+  }
+  el.append(ul);
+}
 function setMode(m){
   document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", b.dataset.mode === m));
   $("panelRef").hidden = m !== "ref"; $("panelEx").hidden = m !== "ex";
   if(m === "ex"){
     $("exTitle").textContent = REF ? REF.name : "Cvičení";
     $("btnExStart").disabled = !REF || !landmarker;
+    $("demoRow").hidden = !REF?.video;
+    renderTips();
     if(!REF) setStatus("warn", "Nejdřív nahraj vzor v kroku 1");
     else if(landmarker) setStatus("", "Postav telefon bokem k pacientovi a stiskni Začít cvičit.");
     buildJointRows();
@@ -223,12 +284,30 @@ const si = i => side === "R" ? (TO_RIGHT[i] ?? i) : i;
 function computeAngles(lm, w, h){
   const vis = idx => idx.reduce((s,i) => s + (lm[i].visibility ?? 1), 0) / idx.length;
   side = vis(RIGHT) > vis(LEFT) ? "R" : "L";
+  // Kam je člověk otočený (+1 doprava, -1 doleva): nos před uchem, jinak špička před patou.
+  const nose = P(lm, 0, w, h), ear = P(lm, si(7), w, h), heel = P(lm, si(29), w, h), toe = P(lm, si(31), w, h);
+  if(nose.v >= VIS && ear.v >= VIS && Math.abs(nose.x - ear.x) > 2) facing = Math.sign(nose.x - ear.x);
+  else if(heel.v >= VIS && toe.v >= VIS && Math.abs(toe.x - heel.x) > 2) facing = Math.sign(toe.x - heel.x);
+  const deg = r => r * 180 / Math.PI;
   const out = {};
   for(const j of JOINTS){
     const pts = j.p.map(i => P(lm, si(i), w, h));
     if(pts.some(p => p.v < VIS)){ out[j.id] = null; continue; }
-    if(j.trunk) out[j.id] = Math.atan2(Math.abs(pts[0].x - pts[1].x), pts[1].y - pts[0].y) * 180 / Math.PI;
-    else out[j.id] = angle(pts[0], pts[1], pts[2]);
+    const [a, b, c] = pts;
+    if(j.kind === "trunk") out[j.id] = deg(Math.atan2(Math.abs(a.x - b.x), b.y - a.y));
+    else if(j.kind === "head"){
+      // Odklon spojnice rameno-ucho od osy trupu; + = hlava zakloněná dozadu.
+      if(!facing){ out[j.id] = null; continue; }
+      const ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y;
+      out[j.id] = deg(Math.atan2(ux*vy - uy*vx, ux*vx + uy*vy)) * -facing;
+    }
+    else if(j.kind === "shin"){
+      // Náklon bérce od svislice; + = koleno vpředu před kotníkem.
+      if(!facing){ out[j.id] = null; continue; }
+      out[j.id] = deg(Math.atan2((b.x - a.x) * facing, a.y - b.y));
+    }
+    else if(j.kind === "heel") out[j.id] = deg(Math.atan2(b.y - a.y, Math.abs(b.x - a.x)));  // + = pata nad špičkou
+    else out[j.id] = angle(a, b, c);
   }
   return out;
 }
@@ -300,7 +379,7 @@ $("btnDefault").onclick = () => { REF = DEFAULT_REF; try{ localStorage.removeIte
 /* ---------- camera ---------- */
 async function startCamera(){
   stopStream();
-  video.removeAttribute("src");
+  unloadFile();
   const rear = $("rearCam").checked;
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode: rear ? "environment" : "user", width:{ideal:1280}, height:{ideal:720}}, audio:false});
@@ -313,7 +392,8 @@ async function startCamera(){
   await video.play();
 }
 function stopStream(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } video.srcObject = null; }
-function stopAll(){ mode = "idle"; stopStream(); video.pause(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
+function unloadFile(){ video.pause(); video.onended = null; video.ontimeupdate = null; if(video.getAttribute("src")){ video.removeAttribute("src"); video.load(); } video.muted = true; $("btnDemo").textContent = "Přehrát ukázku od terapeuta"; }
+function stopAll(){ mode = "idle"; stopStream(); unloadFile(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
   $("btnRecStop").disabled = true; $("btnRecStart").disabled = !landmarker; $("btnExStop").disabled = true; $("btnExStart").disabled = !REF || !landmarker; }
 function countdown(n){
   return new Promise(res => {
@@ -343,6 +423,22 @@ $("fileIn").onchange = e => {
   video.play();
 };
 
+/* ---------- ukázka od terapeuta (video + komentář) ---------- */
+$("btnDemo").onclick = () => {
+  if(mode === "demo"){ stopAll(); setMode("ex"); return; }
+  stopAll();
+  cam.classList.remove("mirror");
+  video.src = REF.video; video.muted = false; mode = "demo";
+  $("btnDemo").textContent = "Zastavit ukázku";
+  setStatus("", "Ukázka od terapeuta");
+  video.ontimeupdate = () => {
+    const t = video.currentTime, c = (REF.captions || []).find(c => t >= c[0] && t < c[1]);
+    setStatus("", c ? c[2] : "Ukázka od terapeuta");
+  };
+  video.onended = () => { stopAll(); setMode("ex"); setStatus("good", "Teď ty. Stiskni Začít cvičit."); };
+  video.play().catch(() => { stopAll(); setStatus("warn", "Video se nepodařilo přehrát."); });
+};
+
 /* ---------- exercise ---------- */
 let counter = null, errSince = {}, repCount = 0, lastBars = 0, cur = null;
 function buildJointRows(){
@@ -360,9 +456,13 @@ $("tol").oninput = () => $("tolOut").textContent = $("tol").value + "°";
 
 $("btnExStart").onclick = async () => {
   if(!REF) return;
-  speak("Připrav se", true);
+  const setup = REF.setup?.length ? REF.setup.join(" ") : "Připrav se";
+  const spoken = speakAndWait(setup, REF.setup?.length ? 15000 : 1500);  // první speak() musí být přímo v kliknutí (iOS)
   $("btnExStart").disabled = true;
   try{ await startCamera(); }catch(e){ $("btnExStart").disabled = false; return; }
+  setStatus("", REF.setup?.length ? REF.setup.join(" ") : "Postav se bokem do záběru…", 1);
+  await spoken;
+  statusHoldUntil = 0;
   setStatus("", "Postav se bokem do záběru…");
   await countdown(3);
   counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; smooth = {}; cur = null;
@@ -396,7 +496,7 @@ function exerciseStep(a, t){
   REF.present.forEach((id, m) => {
     const v = a[id]; if(v == null){ diffs[id] = null; delete errSince[id]; return; }
     const d = v - exp[m]; diffs[id] = d;
-    if(Math.abs(d) > tol){
+    if(Math.abs(d) > tol && (d > 0 ? JMAP[id].hi : JMAP[id].lo)){
       errSince[id] ??= t;
       if(t - errSince[id] >= HOLD){
         flags[id] = true;
@@ -457,11 +557,12 @@ function draw(lm, flags, W, H){
   for(const id of active){
     const j = JMAP[id];
     let x, y;
-    if(j.trunk){ if(!ok(11) || !ok(23)) continue; x = (X(11)+X(23))/2; y = (Y(11)+Y(23))/2; }
-    else { if(!ok(j.p[1])) continue; x = X(j.p[1]); y = Y(j.p[1]); }
+    const at = j.dot || (j.kind === "trunk" ? [11,23] : [j.p[1]]);
+    if(!at.every(ok)) continue;
+    x = at.reduce((s,i) => s + X(i), 0) / at.length; y = at.reduce((s,i) => s + Y(i), 0) / at.length;
     const bad = flags[id];
     ctx.beginPath(); ctx.arc(x, y, bad ? r*1.9 : r, 0, Math.PI*2);
-    ctx.fillStyle = bad ? "#FF4D3A" : (mode === "exercise" ? "#2BD48A" : "#8FA6FF"); ctx.fill();
+    ctx.fillStyle = bad ? "#FF4D3A" : (mode === "exercise" ? "#37CA8A" : "#FFFFFF"); ctx.fill();
     if(bad){ ctx.lineWidth = lw; ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.strokeStyle = "rgba(255,255,255,.9)"; }
   }
 }
@@ -474,8 +575,11 @@ function loop(){
   lastVideoTime = video.currentTime;
   const W = video.videoWidth, H = video.videoHeight; if(!W) return;
   if(canvas.width !== W || canvas.height !== H){ canvas.width = W; canvas.height = H; cam.style.aspectRatio = `${W}/${H}`; }
-  const t = performance.now();
-  let res; try{ res = landmarker.detectForVideo(video, t); }catch(e){ return; }
+  const now = performance.now();
+  if(now <= lastDetectT) return;
+  lastDetectT = now;
+  const t = video.srcObject ? now : video.currentTime * 1000;  // u videa ze souboru čas videa (sedí i při zrychlení/zpomalení)
+  let res; try{ res = landmarker.detectForVideo(video, now); }catch(e){ return; }
   ctx.clearRect(0, 0, W, H);
   const lm = res.landmarks?.[0];
   if(!lm){
@@ -486,14 +590,52 @@ function loop(){
   const a = smoothAngles(computeAngles(lm, W, H));
   let flags = {};
   if(mode === "recording") frames.push({t, a});
-  else if(mode === "uploading") frames.push({t: video.currentTime*1000, a});
+  else if(mode === "uploading") frames.push({t, a});
   else if(mode === "exercise") flags = exerciseStep(a, t);
   draw(lm, flags, W, H);
 }
 
+/* ---------- ladění: ?debug (vzor z videa, video jako pacient; snímek po snímku, běží i ve skrytém okně) ---------- */
+async function eachFrame(url, fromSec, toSec, fps, fn){
+  stopAll(); cam.classList.remove("mirror"); smooth = {};
+  video.src = url;
+  await new Promise(r => video.onloadeddata = r);
+  toSec = Math.min(toSec, video.duration);
+  for(let s = fromSec; s <= toSec; s += 1/fps){
+    await new Promise(r => { video.onseeked = r; video.currentTime = s; });
+    const ts = lastDetectT = Math.max(performance.now(), lastDetectT + 1);
+    const lm = landmarker.detectForVideo(video, ts).landmarks?.[0];
+    if(!lm){ smooth = {}; continue; }
+    fn(smoothAngles(computeAngles(lm, video.videoWidth, video.videoHeight)), s * 1000);
+  }
+  video.onseeked = null;
+}
+if(DEBUG) window.__fyzio = {
+  said, getRef: () => REF,
+  async angles(url, fromSec = 0, toSec = 1e9, fps = 2){
+    const out = [];
+    await eachFrame(url, fromSec, toSec, fps, (a, t) => out.push({t: t/1000, side, facing, ...Object.fromEntries(Object.entries(a).map(([k,v]) => [k, v == null ? null : Math.round(v)]))}));
+    return out;
+  }, setRef: r => { REF = r; renderRefInfo(); setMode("ex"); },
+  async buildRefFromUrl(url, fromSec = 0, toSec = 1e9, name = "Vzor", fps = 30){
+    const fr = [];
+    await eachFrame(url, fromSec, toSec, fps, (a, t) => fr.push({t, a}));
+    return buildReference(fr, name);
+  },
+  async runExerciseOnUrl(url, fromSec = 0, toSec = 1e9, fps = 30){
+    said.length = 0;
+    counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; cur = null; $("log").innerHTML = "";
+    mode = "exercise";
+    const flagged = {};
+    await eachFrame(url, fromSec, toSec, fps, (a, t) => { mode = "exercise"; const f = exerciseStep(a, t); for(const k in f) flagged[k] = (flagged[k] || 0) + 1; });
+    mode = "idle";
+    return {reps: repCount, flaggedFrames: flagged, said: [...said], log: [...$("log").children].map(li => li.textContent).reverse()};
+  }
+};
+
 /* ---------- init ---------- */
 async function init(){
-  loadRef(); renderRefInfo();
+  await loadRef(); renderRefInfo();
   try{
     const vision = await FilesetResolver.forVisionTasks(new URL("./vendor/mediapipe/wasm", location.href).href);
     const opts = d => ({baseOptions:{modelAssetPath:new URL("./models/pose_landmarker_full.task", location.href).href, delegate:d}, runningMode:"VIDEO", numPoses:1});
