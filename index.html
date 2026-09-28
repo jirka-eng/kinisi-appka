@@ -217,9 +217,14 @@ const JOINTS = [
   {id:"trunk", name:"Trup", kind:"trunk", p:[11,23], hi:"Narovnej trup", lo:"Víc se předkloň"},
   // Z komentáře terapeuta: hlava v prodloužení, kolena nepředbíhají střed nártu, neodlepovat chodidla.
   // lo/hi = null: tento směr odchylky se nehlásí.
-  {id:"head", name:"Hlava", kind:"head", p:[23,11,7], dot:[7], hi:"Nezakláněj hlavu", lo:"Hlavu drž v prodloužení zad"},
+  // line: jde hlídat i absolutně "v prodloužení páteře" (0° = krk v ose trupu), nezávisle na vzoru
+  {id:"head", name:"Krk a hlava", kind:"head", p:[23,11,7], dot:[7], line:true, hi:"Nezakláněj hlavu", lo:"Hlavu drž v prodloužení zad"},
   {id:"shin", name:"Kolena vpřed", kind:"shin", p:[27,25], dot:[25,27], hi:"Kolena drž nad nártem", lo:null},
-  {id:"heel", name:"Chodidla", kind:"heel", p:[29,31], dot:[29], hi:"Neodlepuj paty", lo:"Neodlepuj špičky"}
+  {id:"heel", name:"Paty", kind:"heel", p:[29,31], dot:[29], hi:"Neodlepuj paty", lo:null},
+  {id:"toe", name:"Špičky", kind:"toe", p:[29,31], dot:[31], hi:"Neodlepuj špičky", lo:null},
+  // Tvar zad z obrysu postavy (MediaPipe nemá body na páteři): ohyb obrysu zad v bedrech a v hrudní části.
+  {id:"lumbar", name:"Bedra", kind:"back", p:[11,23], hi:"Nehrb se v bedrech", lo:"Neprohýbej se v bedrech"},
+  {id:"thor", name:"Hrudní záda", kind:"back", p:[11,23], hi:"Narovnej hrudní záda", lo:null}
 ];
 const JMAP = Object.fromEntries(JOINTS.map(j => [j.id, j]));
 const LEFT = [11,13,15,23,25,27], RIGHT = [12,14,16,24,26,28];
@@ -286,6 +291,14 @@ function renderSettings(){
     if(!j.hi && !j.lo) continue;
     row(j.name, jOn(st, id), v => upd(c => { c.joints[id] = {...c.joints[id], on: v}; }),
       jTol(st, id), 5, 40, 1, v => v + "°", v => upd(c => { c.joints[id] = {...c.joints[id], tol: v}; }));
+    if(j.line){
+      const sel = document.createElement("select");
+      sel.style.cssText = "width:100%;margin:-4px 0 10px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:.85rem";
+      for(const [v, t] of [["ref", "Porovnávat se vzorem"], ["line", "Držet v prodloužení páteře"]]){ const o = document.createElement("option"); o.value = v; o.textContent = t; o.selected = (st.joints[id]?.mode || "ref") === v; sel.append(o); }
+      sel.setAttribute("aria-label", j.name + ": způsob kontroly");
+      sel.onchange = () => upd(c => { c.joints[id] = {...c.joints[id], mode: sel.value}; });
+      box.append(sel);
+    }
   }
   row("Hloubka pohybu", st.depth.on, v => upd(c => { c.depth.on = v; }), st.depth.tol, 5, 40, 1, v => v + "°", v => upd(c => { c.depth.tol = v; }));
   row("Tempo (nejrychlejší povolené)", st.tempo.on, v => upd(c => { c.tempo.on = v; }), Math.round(st.tempo.ratio*100), 10, 100, 5, v => v + " %", v => upd(c => { c.tempo.ratio = v/100; }));
@@ -480,7 +493,43 @@ function angle(a, b, c){
   return Math.acos(Math.max(-1, Math.min(1, (x1*x2+y1*y2)/d))) * 180 / Math.PI;
 }
 const si = i => side === "R" ? (TO_RIGHT[i] ?? i) : i;
-function computeAngles(lm, w, h){
+// Obrys zad: z os trupu (kyčel -> rameno) se v 5 výškách hledá hrana postavy směrem dozadu.
+const BACK_T = [0.06, 0.28, 0.5, 0.72, 0.92];
+let backPts = null;
+function backProfile(lm, w, h, mask){
+  backPts = null;
+  if(!mask || !facing) return null;
+  const S = P(lm, si(11), w, h), Hp = P(lm, si(23), w, h);
+  if(S.v < VIS || Hp.v < VIS) return null;
+  const ux = S.x - Hp.x, uy = S.y - Hp.y, L = Math.hypot(ux, uy); if(L < 20) return null;
+  let nx = -uy / L, ny = ux / L;
+  if(nx * facing > 0){ nx = -nx; ny = -ny; }  // normála míří za záda
+  const mw = mask.width, mh = mask.height, data = mask.data, sx = mw / w, sy = mh / h, step = L / 120;
+  const inside = (x, y) => { const X = Math.round(x*sx), Y = Math.round(y*sy); return X >= 0 && Y >= 0 && X < mw && Y < mh && data[Y*mw + X] > 0.5; };
+  const pts = [];
+  for(const t of BACK_T){
+    const px = Hp.x + ux*t, py = Hp.y + uy*t;
+    if(!inside(px, py)) return null;
+    let d = 0; while(d < L*0.8 && inside(px + nx*(d+step), py + ny*(d+step))) d += step;
+    if(d >= L*0.8) return null;
+    pts.push([px + nx*d, py + ny*d]);
+  }
+  backPts = pts;
+  // Ohyb v bodě B mezi A a C ve stupních; + = vyklenuté dozadu (kulatá záda), - = prohnuté.
+  const bend = (A, B, C) => {
+    const v1x = B[0]-A[0], v1y = B[1]-A[1], v2x = C[0]-B[0], v2y = C[1]-B[1];
+    const ang = Math.acos(Math.max(-1, Math.min(1, (v1x*v2x + v1y*v2y) / (Math.hypot(v1x,v1y) * Math.hypot(v2x,v2y) || 1)))) * 180 / Math.PI;
+    const dev = (B[0] - (A[0]+C[0])/2) * nx + (B[1] - (A[1]+C[1])/2) * ny;
+    return dev >= 0 ? ang : -ang;
+  };
+  return {lumbar: bend(pts[0], pts[1], pts[2]), thor: bend(pts[2], pts[3], pts[4])};
+}
+function readMask(res){
+  const m = res.segmentationMasks?.[0]; if(!m) return null;
+  try{ return {width: m.width, height: m.height, data: m.getAsFloat32Array()}; }
+  finally{ res.segmentationMasks.forEach(x => x.close()); }
+}
+function computeAngles(lm, w, h, mask = null){
   const vis = idx => idx.reduce((s,i) => s + (lm[i].visibility ?? 1), 0) / idx.length;
   side = vis(RIGHT) > vis(LEFT) ? "R" : "L";
   // Kam je člověk otočený (+1 doprava, -1 doleva): nos před uchem, jinak špička před patou.
@@ -506,8 +555,12 @@ function computeAngles(lm, w, h){
       out[j.id] = deg(Math.atan2((b.x - a.x) * facing, a.y - b.y));
     }
     else if(j.kind === "heel") out[j.id] = deg(Math.atan2(b.y - a.y, Math.abs(b.x - a.x)));  // + = pata nad špičkou
+    else if(j.kind === "toe") out[j.id] = deg(Math.atan2(a.y - b.y, Math.abs(b.x - a.x)));   // + = špička nad patou
+    else if(j.kind === "back") out[j.id] = null;  // doplní backProfile níže
     else out[j.id] = angle(a, b, c);
   }
+  const bp = backProfile(lm, w, h, mask);
+  if(bp){ out.lumbar = bp.lumbar; out.thor = bp.thor; }
   return out;
 }
 function smoothAngles(a){
@@ -911,7 +964,7 @@ function exerciseStep(a, t, lm, W, H){
   let worst = null;
   REF.present.forEach((id, m) => {
     const v = a[id]; if(v == null){ diffs[id] = null; delete errSince[id]; return; }
-    const d = v - exp[m]; diffs[id] = d;
+    const d = v - (st.joints[id]?.mode === "line" ? 0 : exp[m]); diffs[id] = d;
     const tol = jTol(st, id);
     if(jOn(st, id) && Math.abs(d) > tol && (d > 0 ? JMAP[id].hi : JMAP[id].lo)){
       errSince[id] ??= t;
@@ -990,10 +1043,22 @@ function draw(lm, flags, W, H){
     if(!ok(a) || !ok(b)) continue;
     ctx.beginPath(); ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)); ctx.stroke();
   }
+  if(backPts){
+    ctx.save(); ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.setLineDash([lw*1.5, lw]);
+    ctx.beginPath(); backPts.forEach(([x,y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.restore();
+  }
   const active = REF && mode === "exercise" ? REF.present : JOINTS.map(j => j.id);
   for(const id of active){
     const j = JMAP[id];
     let x, y;
+    if(j.kind === "back"){
+      if(!backPts) continue;
+      [x, y] = backPts[id === "lumbar" ? 1 : 3];
+      const bad = flags[id];
+      ctx.beginPath(); ctx.arc(x, y, bad ? r*1.9 : r, 0, Math.PI*2);
+      ctx.fillStyle = bad ? "#FF4D3A" : (mode === "exercise" ? "#37CA8A" : "#FFFFFF"); ctx.fill();
+      continue;
+    }
     const at = j.dot || (j.kind === "trunk" ? [11,23] : [j.p[1]]);
     if(!at.every(ok)) continue;
     x = at.reduce((s,i) => s + X(i), 0) / at.length; y = at.reduce((s,i) => s + Y(i), 0) / at.length;
@@ -1017,6 +1082,7 @@ function loop(){
   lastDetectT = now;
   const t = video.srcObject ? now : video.currentTime * 1000;  // u videa ze souboru čas videa (sedí i při zrychlení/zpomalení)
   let res; try{ res = landmarker.detectForVideo(video, now); }catch(e){ return; }
+  const mask = readMask(res);
   ctx.clearRect(0, 0, W, H);
   const lm = res.landmarks?.[0];
   if(!lm){
@@ -1024,7 +1090,7 @@ function loop(){
     if(mode === "exercise" || mode === "recording") setStatus("warn", "Nevidím tě. Postav se celý do záběru.");
     return;
   }
-  const a = smoothAngles(computeAngles(lm, W, H));
+  const a = smoothAngles(computeAngles(lm, W, H, mask));
   let flags = {};
   if(mode === "recording" || mode === "uploading") frames.push({t, a, f: facing});
   else if(mode === "exercise") flags = exerciseStep(a, t, lm, W, H);
@@ -1040,9 +1106,9 @@ async function eachFrame(url, fromSec, toSec, fps, fn){
   for(let s = fromSec; s <= toSec; s += 1/fps){
     await new Promise(r => { video.onseeked = r; video.currentTime = s; });
     const ts = lastDetectT = Math.max(performance.now(), lastDetectT + 1);
-    const lm = landmarker.detectForVideo(video, ts).landmarks?.[0];
+    const res = landmarker.detectForVideo(video, ts), mask = readMask(res), lm = res.landmarks?.[0];
     if(!lm){ smooth = {}; continue; }
-    fn(smoothAngles(computeAngles(lm, video.videoWidth, video.videoHeight)), s * 1000, lm, video.videoWidth, video.videoHeight);
+    fn(smoothAngles(computeAngles(lm, video.videoWidth, video.videoHeight, mask)), s * 1000, lm, video.videoWidth, video.videoHeight);
   }
   video.onseeked = null;
 }
@@ -1090,7 +1156,7 @@ async function init(){
   await loadRef(); renderRefInfo();
   try{
     const vision = await FilesetResolver.forVisionTasks(new URL("./vendor/mediapipe/wasm", location.href).href);
-    const opts = d => ({baseOptions:{modelAssetPath:new URL("./models/pose_landmarker_full.task", location.href).href, delegate:d}, runningMode:"VIDEO", numPoses:1});
+    const opts = d => ({baseOptions:{modelAssetPath:new URL("./models/pose_landmarker_full.task", location.href).href, delegate:d}, runningMode:"VIDEO", numPoses:1, outputSegmentationMasks:true});
     try{ landmarker = await PoseLandmarker.createFromOptions(vision, opts("GPU")); }
     catch(e){ landmarker = await PoseLandmarker.createFromOptions(vision, opts("CPU")); }
     $("btnRecStart").disabled = false; $("fileIn").disabled = false;
