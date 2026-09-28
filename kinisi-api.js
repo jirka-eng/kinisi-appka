@@ -43,7 +43,8 @@
   function toRow(rec, patientId){
     return {patient_id: patientId, client_id: rec.id, exercise: rec.ex, primary_joint: rec.primary, started_at: rec.date,
       duration_s: rec.dur, reps: rec.reps, incomplete: rec.incomplete, good: rec.good, score: rec.score,
-      best_range: rec.bestRange, errors: rec.errors || {}, pain: rec.pain, effort: rec.effort};
+      best_range: rec.bestRange, errors: rec.errors || {}, pain: rec.pain, effort: rec.effort,
+      ref_id: rec.refId || null, target_reps: rec.plan?.reps ?? null, target_sets: rec.plan?.sets ?? null};
   }
   // Uloží souhrn cvičení na server; bez signálu ho podrží ve frontě a pošle příště.
   async function uploadSession(rec){
@@ -64,6 +65,17 @@
     }catch(e){ return {ok: false, reason: e.message || String(e), pending: rows.length}; }
   }
 
+  // Sestava od terapeuta (pacient ji jen čte); poslední známá se drží v telefonu i bez signálu.
+  async function getProgram(){
+    const p = getPairing(); if(!p) return null;
+    try{
+      await ensureAnon();
+      const {data, error} = await sb.from("patients").select("name, program").eq("id", p.patientId).single();
+      if(error) throw error;
+      store.set("kinisi-program", data.program); return data.program;
+    }catch(e){ return store.get("kinisi-program", null); }
+  }
+
   /* ---------- terapeut ---------- */
   async function therapistSession(){
     const {data: {session}} = await sb.auth.getSession();
@@ -77,7 +89,7 @@
   const signOut = () => sb.auth.signOut();
   async function loadTherapistData(){
     const [p, s] = await Promise.all([
-      sb.from("patients").select("id,name,user_id,invite_code,invite_expires,created_at").order("name"),
+      sb.from("patients").select("id,name,user_id,invite_code,invite_expires,created_at,program").order("name"),
       sb.from("sessions").select("*").order("started_at")
     ]);
     if(p.error) throw p.error; if(s.error) throw s.error;
@@ -91,13 +103,14 @@
     const {data, error} = await sb.rpc("create_invite", {p_patient: patientId});
     if(error) throw error; return data;
   }
+  async function saveProgram(id, program){ const {error} = await sb.from("patients").update({program}).eq("id", id); if(error) throw error; }
   async function deletePatient(id){ const {error} = await sb.from("patients").delete().eq("id", id); if(error) throw error; }
   function onSessionsChange(cb){
     return sb.channel("sessions-live").on("postgres_changes", {event: "*", schema: "public", table: "sessions"}, cb).subscribe();
   }
   const inviteLink = code => new URL("./?pozvanka=" + encodeURIComponent(code), location.href).href;
 
-  window.KinisiAPI = {sb, pairFromUrl, getPairing, uploadSession, flushQueue,
+  window.KinisiAPI = {sb, pairFromUrl, getPairing, uploadSession, flushQueue, getProgram, saveProgram,
     therapistSession, signIn, signOut, loadTherapistData, addPatient, createInvite, deletePatient, onSessionsChange, inviteLink,
     onAuth: cb => sb.auth.onAuthStateChange((ev, s) => cb(ev, s))};
 })();

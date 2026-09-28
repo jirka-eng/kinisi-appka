@@ -100,6 +100,14 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .sync{font-size:.88rem;font-weight:500;margin:0 0 10px}
 .sync.ok{color:var(--good)} .sync.wait{color:var(--warn)}
 .paired{font-size:.85rem;color:var(--good);font-weight:500;margin:-6px 0 12px}
+.program{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 14px}
+.program h3{font-size:.95rem;font-weight:500;margin:0 0 6px}
+.program ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.program li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;padding:6px 8px;border-radius:6px;background:var(--bg)}
+.program li.active{box-shadow:inset 3px 0 0 var(--brand)}
+.program li small{grid-column:1;color:var(--muted);font-size:.8rem}
+.program li .done{color:var(--good);font-weight:700}
+.program .btn{padding:6px 12px;grid-row:1 / span 2;grid-column:2}
 .hist{list-style:none;padding:0!important;font-size:.85rem}
 .hist li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
 .refpip{position:absolute;left:10px;top:10px;width:34%;max-width:320px;border-radius:8px;overflow:hidden;background:#000;border:2px solid var(--brand);box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;z-index:2}
@@ -167,6 +175,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
           <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
         </label>
         <div class="paired" id="pairedNote" hidden></div>
+        <div class="program" id="program" hidden></div>
         <div class="reps"><b id="repCount">0</b><span id="repOf">opakování</span></div>
         <div class="row">
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
@@ -406,6 +415,45 @@ function showPairing(p){
   $("patient").value = p.name; $("patient").readOnly = true;
   $("pairedNote").hidden = false; $("pairedNote").textContent = "✓ Spárováno s terapeutem, cvičení se ukládají automaticky.";
 }
+/* ---------- sestava od terapeuta ---------- */
+let PROGRAM = null, LIBRARY = null;
+async function library(){ if(!LIBRARY){ try{ LIBRARY = await (await fetch("refs/index.json", {cache: "no-cache"})).json(); }catch(e){ LIBRARY = []; } } return LIBRARY; }
+const FREQ = f => f?.per === "week" ? `${f.times}× týdně` : `${f?.times || 1}× denně`;
+function periodStart(per){ const d = new Date(); d.setHours(0,0,0,0); if(per === "week"){ const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); } return d.getTime(); }
+function doneCount(item){
+  const from = periodStart(item.freq?.per);
+  return loadHistory().filter(x => (x.refId ? x.refId === item.ref : x.ex === item.name) && Date.parse(x.date) >= from).length;
+}
+function renderProgram(){
+  const box = $("program"), items = PROGRAM?.items || [];
+  box.hidden = !items.length; box.innerHTML = "";
+  if(!items.length) return;
+  box.append(el("h3", {textContent: "Tvoje sestava od terapeuta"}));
+  const ul = el("ul");
+  for(const it of items){
+    const n = doneCount(it), need = it.freq?.times || 1, per = it.freq?.per === "week" ? "tento týden" : "dnes";
+    const li = el("li", {className: ACTIVE_ITEM === it ? "active" : ""},
+      el("span", {}, el("b", {textContent: it.name}), " ", n >= need ? el("span", {className: "done", textContent: "✓"}) : ""),
+      el("button", {className: "btn" + (ACTIVE_ITEM === it ? " primary" : ""), type: "button", textContent: ACTIVE_ITEM === it ? "Vybráno" : "Cvičit", onclick: () => selectItem(it)}),
+      el("small", {textContent: `${it.sets} × ${it.reps} · ${FREQ(it.freq)} · ${per} ${Math.min(n, need)}/${need}`}));
+    ul.append(li);
+  }
+  box.append(ul);
+}
+async function selectItem(it){
+  const lib = await library(), entry = lib.find(x => x.id === it.ref);
+  if(!entry){ setStatus("warn", `Cvik ${it.name} v knihovně chybí.`, 3000); return; }
+  try{ REF = await (await fetch(entry.file, {cache: "no-cache"})).json(); }catch(e){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
+  ACTIVE_ITEM = it; stopAll(); renderRefInfo(); setMode("ex"); renderProgram(); showReps();
+  setStatus("", `${it.name}: ${it.sets} × ${it.reps}. Stiskni Začít cvičit.`);
+}
+async function loadProgram(){
+  PROGRAM = await window.KinisiAPI.getProgram();
+  const items = PROGRAM?.items || [];
+  if(items.length && !ACTIVE_ITEM){ const next = items.find(it => doneCount(it) < (it.freq?.times || 1)) || items[0]; await selectItem(next); }
+  else renderProgram();
+}
+
 (async () => {
   const api = window.KinisiAPI; if(!api) return;
   showPairing(api.getPairing());
@@ -414,6 +462,7 @@ function showPairing(p){
     if(p){ showPairing(p); setStatus("good", `Vítej, ${p.name}. Telefon je spárovaný s terapeutem.`, 4000); }
   }catch(e){ setStatus("warn", e.message, 6000); }
   api.flushQueue();
+  if(api.getPairing()){ await initDone; loadProgram(); }
 })();
 $("patient").onchange = () => { try{ localStorage.setItem("fyzio-patient", $("patient").value.trim()); }catch(e){} };
 
@@ -651,7 +700,7 @@ function endSession(){
   const s = sess; sess = null;
   if(!s || !s.reps.length) return null;
   const full = s.reps.filter(r => r.full);
-  const rec = {id: s.id, patient: $("patient").value.trim() || "Pacient", ex: s.ex, primary: s.primary, date: s.date, dur: Math.round((performance.now() - s.t0)/1000),
+  const rec = {id: s.id, refId: REF?.id || null, patient: $("patient").value.trim() || "Pacient", ex: s.ex, primary: s.primary, date: s.date, dur: Math.round((performance.now() - s.t0)/1000),
     reps: full.length, incomplete: s.reps.length - full.length,
     good: full.filter(r => !r.errors.length && !r.notes.length).length,
     score: full.length ? Math.round(full.reduce((x,r) => x + r.score, 0) / full.length) : 0,
@@ -660,6 +709,7 @@ function endSession(){
   const h = loadHistory(); h.push(rec); saveHistory(h);
   renderSummary(rec);
   sync(rec);
+  renderProgram();
   return rec;
 }
 // Spárovaný telefon posílá souhrn na server (jen čísla, žádné video).
@@ -1035,6 +1085,7 @@ if(DEBUG) window.__fyzio = {
 };
 
 /* ---------- init ---------- */
+let initResolve; const initDone = new Promise(r => initResolve = r);
 async function init(){
   await loadRef(); renderRefInfo();
   try{
@@ -1048,6 +1099,7 @@ async function init(){
     setStatus("warn", "Model se nepodařilo načíst. Zkontroluj připojení a obnov stránku.");
   }
   requestAnimationFrame(loop);
+  initResolve();
 }
 init();
 </script>
