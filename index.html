@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kontrola cvičení - prototyp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF2F4; --surface:#FFFFFF; --ink:#16242F; --muted:#5B6B78; --line:#D5DEE3;
+  --accent:#2B4FD8; --accent-ink:#FFFFFF; --good:#178A5B; --bad:#D8412F; --warn:#B87812;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1820; --surface:#172430; --ink:#E6EDF2; --muted:#93A4B1; --line:#2A3A47;
+    --accent:#7C95FF; --accent-ink:#0F1820; --good:#3CC58A; --bad:#FF6B5A; --warn:#F0B24A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1820; --surface:#172430; --ink:#E6EDF2; --muted:#93A4B1; --line:#2A3A47;
+  --accent:#7C95FF; --accent-ink:#0F1820; --good:#3CC58A; --bad:#FF6B5A; --warn:#F0B24A;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
+header h1{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:0 0 6px}
+header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
+.modes{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:5px;width:max-content;max-width:100%;margin-bottom:16px}
+.modes button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;padding:9px 16px;border-radius:10px;cursor:pointer}
+.modes button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:1fr}}
+.cam{position:relative;width:100%;aspect-ratio:16/9;max-height:72vh;background:#0b1117;border-radius:18px;overflow:hidden}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.cam.mirror video,.cam.mirror canvas{transform:scaleX(-1)}
+.status{position:absolute;left:12px;right:12px;bottom:12px;padding:14px 18px;border-radius:14px;font-weight:800;font-size:clamp(1.05rem,3.2vw,1.6rem);line-height:1.2;color:#fff;background:rgba(20,30,40,.78);transition:background-color .2s}
+.status.good{background:var(--good)} .status.bad{background:var(--bad)} .status.warn{background:var(--warn)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .status.good, :root:not([data-theme="light"]) .status.bad, :root:not([data-theme="light"]) .status.warn{color:#0F1820} }
+.countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(5rem,20vw,11rem);font-weight:800;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.5);pointer-events:none}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px}
+.panel h2{font-size:1.1rem;margin:0 0 8px}
+.panel p{margin:0 0 14px;color:var(--muted);font-size:.95rem}
+.field{display:block;margin:0 0 12px;font-size:.9rem;font-weight:500}
+.field input[type=text]{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-weight:700;padding:11px 16px;border-radius:12px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.modes button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.upload{display:inline-block;font-size:.9rem;color:var(--muted);margin:4px 0 12px}
+.upload input{display:block;margin-top:6px;font:inherit;color:var(--ink);max-width:100%}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem;margin:0 0 12px}
+.refinfo{border-top:1px solid var(--line);padding-top:12px;margin-top:6px;font-size:.9rem}
+.refinfo strong{display:block;font-size:1rem}
+.err{color:var(--bad);font-weight:600}
+.reps{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.reps b{font-size:3.4rem;font-weight:800;line-height:1;letter-spacing:-.03em}
+.reps span{color:var(--muted)}
+.tol{margin-bottom:12px;font-size:.9rem}
+.tol input{width:100%}
+.joints{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.joints li{display:grid;grid-template-columns:110px 1fr 44px;gap:8px;align-items:center;font-size:.85rem}
+.joints .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.joints .bar i{display:block;height:100%;width:0;background:var(--good);transition:width .1s}
+.joints .bar i.bad{background:var(--bad)}
+.joints .num{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.joints li.primary span:first-child{font-weight:700}
+.log{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+.log li{padding:2px 0}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Kontrola domácího cvičení</h1>
+    <p>Terapeut nahraje, jak se cvik dělá správně. Pacient pak cvičí doma před kamerou a hned slyší, co dělá jinak.</p>
+  </header>
+
+  <div class="modes" role="tablist">
+    <button role="tab" aria-selected="false" data-mode="ref">1. Nahrát vzor</button>
+    <button role="tab" aria-selected="true" data-mode="ex">2. Cvičit</button>
+  </div>
+
+  <div class="layout">
+    <div class="cam" id="cam">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="countdown" id="countdown" hidden></div>
+      <div class="status" id="status">Načítám model pro rozpoznání postavy…</div>
+    </div>
+
+    <aside class="panel">
+      <section id="panelRef" hidden>
+        <h2>Vzor od terapeuta</h2>
+        <p>Postav telefon bokem k cvičícímu, aby byla vidět celá postava od hlavy po kotníky. Udělej 1 až 5 správných opakování. Pacient pak musí mít kameru ze stejné strany.</p>
+        <label class="field">Název cviku
+          <input type="text" id="exName" value="Dřep">
+        </label>
+        <label class="check"><input type="checkbox" id="rearCam" checked> Použít zadní kameru</label>
+        <div class="row">
+          <button class="btn primary" id="btnRecStart" disabled>Nahrát vzor kamerou</button>
+          <button class="btn" id="btnRecStop" disabled>Uložit vzor</button>
+        </div>
+        <label class="upload">Nebo nahraj hotové video
+          <input type="file" id="fileIn" accept="video/*" disabled>
+        </label>
+        <div class="refinfo" id="refInfo">Zatím žádný vzor.</div>
+        <button class="btn" id="btnDefault" style="margin-top:10px">Použít vzor z videa (dřep)</button>
+      </section>
+
+      <section id="panelEx">
+        <h2 id="exTitle">Cvičení</h2>
+        <div class="reps"><b id="repCount">0</b><span>opakování</span></div>
+        <div class="row">
+          <button class="btn primary" id="btnExStart">Začít cvičit</button>
+          <button class="btn" id="btnExStop" disabled>Konec</button>
+        </div>
+        <div class="tol">
+          <label for="tol">Tolerance odchylky: <output id="tolOut">15°</output></label>
+          <input type="range" id="tol" min="8" max="30" value="15">
+        </div>
+        <label class="check"><input type="checkbox" id="voice" checked> Hlasové pokyny</label>
+        <label class="check"><input type="checkbox" id="rearCam2" checked> Zadní kamera (točím někoho jiného)</label>
+        <ul class="joints" id="joints"></ul>
+        <ul class="log" id="log"></ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver } from "./vendor/mediapipe/vision_bundle.mjs";
+
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("overlay"), ctx = canvas.getContext("2d"), cam = $("cam");
+const statusEl = $("status");
+const DEFAULT_REF = {"name":"Dřep (vzor z videa)","primary":"hip","start":171.2,"far":46.4,"present":["knee","hip","sh","el","trunk"],"frames":[[172.4,174.7,3.7,158.2,3.0],[172.0,173.4,3.9,158.1,4.2],[171.8,172.3,2.8,160.1,5.4],[172.3,171.6,1.3,163.2,6.6],[172.4,170.9,1.6,162.3,7.4],[173.2,169.9,1.9,161.1,8.6],[172.0,167.5,1.5,160.3,10.1],[171.1,165.1,0.9,159.0,11.9],[170.2,163.5,1.4,156.2,13.3],[168.9,161.3,1.0,152.9,14.7],[168.9,161.1,1.4,148.5,15.0],[168.8,159.6,1.8,143.4,16.4],[169.2,159.1,0.1,140.7,17.4],[169.3,158.3,2.1,140.6,18.5],[169.8,157.5,4.7,144.2,19.4],[171.2,157.2,6.4,144.8,20.1],[170.5,155.3,9.8,146.7,21.2],[169.2,152.3,10.6,144.8,22.6],[167.9,150.3,14.4,143.8,23.6],[168.1,150.1,14.9,141.1,23.8],[167.4,148.7,18.9,143.1,24.3],[167.3,147.0,22.7,143.2,25.2],[166.4,144.4,26.2,144.1,26.5],[165.8,141.9,29.6,145.4,27.9],[165.3,140.7,32.8,145.4,28.7],[164.9,138.8,36.7,146.7,29.9],[164.8,138.0,38.2,146.2,30.5],[164.5,136.8,38.6,144.7,31.1],[164.4,135.3,39.0,141.2,31.8],[163.6,133.4,40.1,139.5,32.7],[161.9,131.1,41.9,138.8,33.5],[160.5,129.8,43.4,138.4,33.7],[159.6,128.5,44.1,137.5,34.2],[158.8,127.9,44.7,136.7,34.2],[158.4,126.4,46.4,133.9,34.7],[156.6,124.9,47.3,133.9,34.9],[154.8,122.9,47.8,134.8,35.3],[154.4,121.9,48.3,135.2,35.6],[153.0,120.4,49.3,135.1,36.1],[151.4,118.2,50.9,135.3,36.7],[149.8,116.7,51.9,135.9,37.1],[149.5,115.7,56.5,139.9,37.8],[147.5,113.3,60.2,141.0,38.7],[145.9,110.9,62.8,142.2,39.7],[147.0,111.2,63.5,142.4,40.0],[146.1,109.8,64.4,141.9,40.6],[144.8,107.9,66.9,141.3,41.1],[146.4,108.4,68.1,140.0,41.9],[147.7,108.1,68.8,137.8,42.6],[149.6,109.0,69.1,137.1,42.6],[151.4,109.8,69.9,136.9,42.8],[147.1,106.9,70.8,135.3,43.0],[145.2,104.8,72.5,135.3,43.7],[144.6,103.7,73.9,135.2,44.3],[143.9,102.5,74.8,135.7,44.7],[144.8,102.8,75.5,135.1,45.1],[145.9,103.5,77.1,135.3,45.3],[144.2,102.4,77.3,135.3,45.5],[146.0,102.7,77.9,134.4,46.0],[146.0,102.3,78.5,134.3,46.3],[146.2,101.1,80.0,133.8,47.3],[146.9,100.4,80.8,133.6,48.1],[147.2,100.6,80.5,133.5,47.8],[147.0,100.1,81.0,133.3,48.1],[146.9,99.5,81.4,133.2,48.4],[141.5,95.5,82.6,133.1,49.0],[140.6,94.4,82.6,131.4,49.5],[140.9,94.3,82.5,130.8,49.8],[140.9,94.3,81.5,130.6,49.9],[140.8,94.2,80.9,130.1,49.9],[140.9,93.9,81.2,129.5,50.1],[140.4,93.1,82.0,128.5,50.6],[140.0,92.1,83.3,128.2,51.2],[139.7,91.7,83.8,127.8,51.4],[139.3,91.0,84.0,126.5,51.7],[138.9,90.1,84.9,124.6,52.2],[138.6,89.4,87.1,124.6,52.8],[138.0,88.1,88.8,124.3,53.5],[137.5,87.6,88.7,123.7,53.6],[137.4,87.3,88.1,122.1,53.8],[137.8,86.7,89.3,121.8,54.5],[137.2,85.8,89.8,121.7,54.8],[137.3,85.5,89.9,121.3,55.1],[137.0,85.1,90.3,121.4,55.4],[136.9,84.7,91.0,121.2,55.8],[136.9,84.7,90.8,120.6,55.7],[136.6,84.6,90.3,120.2,55.5],[136.4,84.1,90.2,119.7,55.8],[136.1,83.3,91.1,119.6,56.3],[135.2,82.0,92.1,119.0,56.8],[134.7,81.0,93.6,119.8,57.3],[134.4,80.6,93.7,118.9,57.4],[134.1,80.3,93.7,119.1,57.4],[134.3,79.9,94.2,118.1,57.8],[134.0,79.7,94.0,117.9,57.7],[133.9,79.6,93.6,117.9,57.6],[133.5,79.5,93.8,118.3,57.5],[132.7,78.7,95.6,118.5,57.9],[132.6,78.2,96.8,118.6,58.4],[132.5,77.5,97.7,118.8,59.0],[131.6,76.5,99.0,119.5,59.5],[131.1,75.4,100.5,120.5,60.2],[131.5,75.4,100.4,120.5,60.4],[131.5,74.9,100.2,119.4,60.7],[131.7,74.3,101.0,118.7,61.5],[131.5,73.4,102.4,118.2,62.1],[131.4,73.2,102.2,117.2,62.1],[130.5,72.8,101.6,116.5,61.8],[129.4,72.4,101.4,116.2,61.5],[128.6,72.0,101.4,116.1,61.4],[128.0,71.7,101.4,116.2,61.3],[127.7,71.6,101.4,116.2,61.2],[127.2,71.1,101.8,116.3,61.4],[126.9,71.0,101.8,116.2,61.3],[127.0,71.0,101.7,115.9,61.3],[126.4,70.6,101.7,115.8,61.3],[126.1,70.4,101.7,115.7,61.3],[125.7,70.1,102.1,116.1,61.4],[125.8,70.2,102.3,116.1,61.4],[125.6,70.1,102.4,116.1,61.5],[125.5,70.0,102.5,116.0,61.6],[125.7,70.0,102.5,115.7,61.7],[125.6,69.7,102.5,115.5,61.8],[125.3,69.5,102.4,115.4,61.8],[125.0,69.4,102.2,115.1,61.7],[123.9,68.8,102.0,114.6,61.6],[123.5,68.6,101.9,114.4,61.5],[123.5,68.6,102.3,114.6,61.5],[123.2,68.4,102.4,114.5,61.5],[122.4,67.8,102.5,114.1,61.6],[121.8,67.1,102.5,113.9,61.7],[121.5,66.7,102.5,114.0,61.7],[120.9,66.3,102.4,114.0,61.6],[120.7,66.0,102.7,113.7,61.7],[120.5,66.0,102.6,113.4,61.7],[120.4,65.8,102.5,112.7,61.9],[120.4,65.8,102.6,111.5,62.1],[120.8,66.0,101.4,110.0,62.2],[119.9,65.2,99.4,108.7,62.5],[118.6,63.9,98.3,111.4,62.9],[117.6,63.0,96.6,113.3,63.1],[117.0,62.5,94.9,112.8,63.3],[115.7,61.3,93.3,112.3,63.3],[115.2,60.7,92.0,110.5,63.3],[115.3,59.7,92.6,109.4,64.3],[115.1,58.8,93.4,109.2,65.1],[114.9,58.8,93.4,108.6,65.1],[114.8,58.4,94.7,109.4,65.2],[114.4,57.7,95.6,109.6,65.7],[113.9,56.9,96.8,110.1,66.1],[113.2,56.0,97.5,108.9,66.4],[112.3,55.4,97.9,108.5,66.4],[111.6,55.2,98.2,107.9,66.2],[111.6,55.8,98.9,108.4,65.5],[111.5,56.8,100.1,108.9,64.5],[111.4,57.2,100.3,108.7,64.0],[111.3,57.2,100.3,108.3,63.9],[111.2,57.2,100.1,107.8,63.8],[111.1,57.0,100.9,108.0,63.9],[110.9,56.2,102.5,109.0,64.6],[111.0,55.6,103.0,108.7,65.2],[111.1,55.0,103.6,108.8,65.7],[111.0,54.4,104.2,109.1,66.2],[111.2,54.4,104.3,108.9,66.4],[111.3,54.1,104.7,108.8,66.9],[111.5,54.0,104.7,108.3,67.1],[111.7,54.0,105.2,108.2,67.5],[111.8,53.9,106.2,109.3,67.7],[111.9,53.9,106.2,109.4,67.8],[111.8,53.9,106.0,109.7,67.7],[111.7,53.6,106.2,109.7,67.9],[111.5,53.5,106.1,109.4,67.8],[111.3,53.3,106.0,109.0,67.9],[111.0,53.0,106.0,108.5,67.9],[110.6,52.6,106.6,108.5,67.9],[110.4,52.5,107.1,108.4,67.9],[110.4,52.6,107.2,108.3,67.7],[110.8,53.2,107.2,109.2,67.4],[110.8,53.3,107.3,109.1,67.5],[110.8,53.2,107.3,108.7,67.5],[110.7,53.0,107.3,107.6,67.7],[110.7,52.8,107.3,106.9,67.9],[110.6,52.7,107.3,106.5,67.9],[110.5,52.7,107.4,106.5,67.9],[110.5,52.6,107.4,106.4,67.9],[110.4,52.7,107.4,106.4,67.8],[110.4,52.7,107.3,106.5,67.8],[110.3,52.7,107.3,106.7,67.7],[110.3,52.8,107.2,106.6,67.7],[110.3,52.8,107.0,106.4,67.6],[110.3,52.9,106.8,106.3,67.6],[110.4,53.1,106.6,105.9,67.5],[110.4,53.1,106.6,105.8,67.5],[110.3,53.2,106.6,105.7,67.5],[110.4,53.2,106.7,105.7,67.5],[110.4,53.2,107.0,105.9,67.5],[110.5,53.6,107.2,106.5,67.3],[110.6,53.9,107.1,107.0,67.0],[110.7,53.9,107.2,107.1,67.1],[110.7,53.9,107.4,107.5,67.0],[110.7,53.9,107.6,107.9,67.0],[110.5,53.9,107.9,108.5,67.0],[110.5,53.9,108.0,108.5,67.0],[110.5,53.8,108.0,108.3,67.1],[110.5,53.8,107.9,107.9,67.1],[110.5,53.6,107.8,107.4,67.3],[110.5,53.5,107.9,107.1,67.3],[110.4,53.4,108.1,107.2,67.4],[110.2,53.1,108.1,107.0,67.5],[110.1,53.0,108.3,107.1,67.6],[110.3,53.0,108.4,107.1,67.6],[110.5,53.1,108.6,107.1,67.7],[110.5,53.1,108.7,107.2,67.7],[110.6,53.3,108.6,107.3,67.6],[110.4,53.3,108.5,107.3,67.5],[110.2,53.3,108.4,107.1,67.3],[109.9,53.3,108.1,107.0,67.2],[109.7,53.3,107.7,106.8,67.1],[109.4,53.2,107.5,106.8,67.0],[109.3,53.3,107.3,106.9,67.0],[109.0,53.3,106.9,106.8,66.6],[108.5,53.2,107.6,107.9,66.5],[107.9,52.8,108.2,108.5,66.3],[107.3,52.5,108.5,108.7,66.0],[106.9,52.4,108.7,109.0,65.8],[106.6,52.2,109.0,109.9,65.6],[106.0,51.9,109.4,110.6,65.4],[105.0,51.0,110.6,111.4,65.5],[103.8,50.1,111.5,112.0,65.4],[103.2,49.9,111.6,112.2,65.0],[102.2,49.4,111.8,112.3,64.7],[101.8,49.4,111.7,112.6,64.5],[101.8,49.6,111.6,112.8,64.2],[101.2,49.0,112.1,113.7,64.2],[100.6,48.4,112.1,114.1,64.1],[100.2,47.7,112.5,114.6,64.2],[100.1,47.5,112.7,114.9,64.3],[100.0,47.4,112.8,115.4,64.1],[100.3,47.5,112.9,115.9,64.0],[100.0,47.4,113.0,116.4,63.8],[99.8,47.4,113.0,116.8,63.6],[99.5,47.4,112.9,117.5,63.3],[99.5,47.7,112.9,117.7,62.9],[100.1,47.9,113.1,117.8,62.8],[100.6,48.3,113.4,117.7,62.8],[100.5,48.3,113.5,117.5,62.7],[100.6,48.3,113.5,117.5,62.7],[100.4,48.2,113.4,117.5,62.6],[100.2,48.2,113.2,117.6,62.5],[100.2,48.2,113.2,117.6,62.4],[100.3,48.3,113.1,117.7,62.3],[100.4,48.1,113.5,117.9,62.4],[100.7,48.2,113.7,118.2,62.5],[100.8,48.3,113.7,118.5,62.6],[101.4,48.4,113.8,118.3,62.8],[101.7,48.4,113.8,117.8,63.1],[102.2,48.6,113.5,117.4,63.3],[102.5,48.8,113.4,117.1,63.4],[102.6,48.8,113.3,117.0,63.5],[102.6,48.7,113.3,116.8,63.5],[102.6,48.6,113.3,116.7,63.6],[102.6,48.8,113.4,117.3,63.5],[102.6,48.8,113.5,117.3,63.4],[102.3,48.8,113.4,117.0,63.2],[102.1,48.8,113.6,117.1,63.1],[101.9,48.7,114.0,117.7,63.0],[101.9,48.7,114.0,117.6,63.0],[101.9,48.3,114.3,117.6,63.4],[101.8,48.0,115.0,118.1,63.8],[101.7,47.5,115.8,118.8,64.2],[100.9,46.9,115.9,119.1,64.3],[100.2,46.4,115.2,118.5,64.4],[100.1,46.3,115.1,118.2,64.5],[100.1,46.4,115.0,118.3,64.4],[100.1,46.5,115.1,118.7,64.4],[100.1,46.6,115.0,118.5,64.3],[100.5,47.1,114.8,118.3,64.2],[100.6,47.3,114.4,117.9,64.0],[100.6,47.4,114.2,116.8,63.8],[100.5,47.5,113.9,115.6,63.8],[100.6,47.6,113.7,114.6,63.7],[100.6,47.7,113.6,114.0,63.6],[100.5,47.7,113.3,113.6,63.4],[100.5,47.8,113.2,113.5,63.4],[100.3,47.7,113.3,113.6,63.4],[99.8,47.2,113.5,113.2,63.6],[99.5,46.7,113.7,113.0,63.9],[99.3,46.4,113.8,112.7,64.2],[99.4,46.3,113.8,112.1,64.5],[99.5,46.2,113.7,111.8,64.6],[99.6,46.3,113.6,111.8,64.7],[99.9,46.4,113.6,111.9,64.9],[100.2,46.5,113.5,111.9,65.0],[100.2,46.5,113.5,111.9,65.0],[100.2,46.5,113.5,111.9,65.1],[100.3,46.5,113.4,111.9,65.1],[100.4,46.6,113.3,111.8,65.2],[100.5,46.6,113.2,111.8,65.2],[100.6,46.6,113.1,111.3,65.3],[100.7,46.6,113.1,111.0,65.4],[100.7,46.5,113.3,111.0,65.5],[100.6,46.3,113.6,111.2,65.6],[100.5,46.2,113.7,111.6,65.6],[100.5,46.2,113.8,111.8,65.7],[100.3,46.2,113.8,112.1,65.6],[100.4,46.3,113.8,112.1,65.6],[100.4,46.5,113.9,112.1,65.6],[100.4,46.5,114.0,112.0,65.6],[100.2,46.4,113.9,112.0,65.4],[100.1,46.5,113.8,112.1,65.3],[100.2,46.7,114.0,112.5,65.3],[100.2,46.7,114.6,112.7,65.3],[100.4,46.9,115.0,113.0,65.1],[100.7,47.2,115.0,112.4,64.9],[100.8,47.4,114.9,112.1,64.8],[100.8,47.4,115.0,112.4,64.8],[100.8,47.5,115.2,112.6,64.8],[100.9,47.6,115.2,112.4,64.7],[100.8,47.5,115.3,112.5,64.8],[100.6,47.4,115.3,112.6,64.7],[100.6,47.4,115.2,112.5,64.7],[100.6,47.3,115.1,112.4,64.7],[100.7,47.4,115.0,112.4,64.7],[100.8,47.6,114.9,112.5,64.7],[100.9,47.5,115.0,113.1,64.8],[100.8,47.4,115.1,113.0,65.0],[100.8,47.4,115.2,112.8,65.0],[100.9,47.6,115.2,112.2,65.0],[101.0,47.7,115.1,111.9,65.0],[101.1,47.8,115.2,111.8,65.0],[101.0,47.8,115.3,111.7,65.0],[101.0,47.8,115.3,112.0,65.0],[101.0,47.9,115.4,112.5,65.0],[101.2,48.1,115.4,112.5,65.0],[101.3,48.1,115.4,112.7,65.0],[101.5,48.2,115.5,113.0,65.1],[102.0,48.5,115.3,112.8,65.2],[102.6,48.8,114.6,111.9,65.6],[102.7,48.9,114.4,111.9,66.0],[104.0,50.2,113.5,111.6,66.1],[105.7,52.8,111.8,113.9,65.4],[108.7,57.6,106.2,113.2,63.3],[111.5,60.6,104.6,115.3,62.9],[115.5,65.2,99.8,116.9,61.6],[119.6,70.7,91.7,116.9,59.4],[122.5,75.8,85.8,119.6,57.2],[126.1,82.4,72.2,119.2,53.9],[130.9,88.9,61.3,115.8,51.1],[133.2,93.6,50.7,120.1,48.6],[133.0,96.3,44.1,129.4,46.3],[136.1,103.4,33.9,132.7,42.9],[138.2,110.3,25.6,135.8,38.5],[144.7,119.3,19.1,151.1,34.8],[147.2,125.2,7.7,144.8,31.4],[151.1,131.4,4.6,144.6,28.3],[155.3,138.4,2.4,153.1,24.8],[157.9,144.8,2.8,156.9,20.9],[161.1,152.0,0.8,157.4,17.1],[163.8,157.3,0.4,156.3,13.8],[165.9,162.7,2.4,152.9,10.8],[168.5,169.1,3.8,149.6,7.2],[169.9,175.0,6.4,144.1,3.6],[171.8,179.2,7.8,141.6,1.6],[173.7,177.0,9.2,140.6,0.1],[174.0,175.1,7.8,142.6,1.3],[172.0,176.3,6.5,143.9,1.1],[171.4,176.3,5.3,146.5,1.1],[171.5,175.9,4.6,147.6,1.4]],"refDesc":4.7,"reps":1};
+
+const VIS = 0.5, HOLD = 400, TEMPO = 0.25;
+const JOINTS = [
+  {id:"knee", name:"Koleno", p:[23,25,27], hi:"Víc pokrč kolena", lo:"Víc propni kolena"},
+  {id:"hip", name:"Kyčel", p:[11,23,25], hi:"Víc se ohni v kyčlích", lo:"Víc propni kyčle"},
+  {id:"sh", name:"Rameno", p:[23,11,13], hi:"Paže drž níž", lo:"Zvedni paže výš"},
+  {id:"el", name:"Loket", p:[11,13,15], hi:"Víc pokrč lokty", lo:"Propni lokty"},
+  {id:"trunk", name:"Trup", trunk:true, p:[11,23], hi:"Narovnej trup", lo:"Víc se předkloň"}
+];
+const JMAP = Object.fromEntries(JOINTS.map(j => [j.id, j]));
+const LEFT = [11,13,15,23,25,27], RIGHT = [12,14,16,24,26,28];
+const TO_RIGHT = {11:12,13:14,15:16,23:24,25:26,27:28,29:30,31:32};
+const CONN = [[11,13],[13,15],[11,23],[23,25],[25,27],[27,31],[27,29],[29,31]];
+
+let landmarker = null, stream = null, mode = "idle", frames = [], REF = null, side = "L";
+let smooth = {}, lastVideoTime = -1;
+
+/* ---------- storage ---------- */
+function loadRef(){ try{ const s = localStorage.getItem("fyzio-ref-v2"); if(s) REF = JSON.parse(s); }catch(e){} if(!REF) REF = DEFAULT_REF; }
+function saveRef(){ try{ localStorage.setItem("fyzio-ref-v2", JSON.stringify(REF)); }catch(e){} }
+
+/* ---------- UI helpers ---------- */
+let statusHoldUntil = 0;
+function setStatus(kind, text, hold = 0){
+  const now = performance.now();
+  if(now < statusHoldUntil && !hold) return;
+  if(hold) statusHoldUntil = now + hold;
+  statusEl.className = "status " + (kind || "");
+  if(statusEl.textContent !== text) statusEl.textContent = text;
+}
+let lastSpoken = "", lastSpokenT = 0;
+function speak(text, force = false){
+  if(!$("voice").checked || !("speechSynthesis" in window)) return;
+  const now = performance.now();
+  if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return;
+  lastSpoken = text; lastSpokenT = now;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.05;
+  speechSynthesis.speak(u);
+}
+function logLine(text){
+  const li = document.createElement("li"); li.textContent = text;
+  const log = $("log"); log.prepend(li);
+  while(log.children.length > 6) log.lastChild.remove();
+}
+function renderRefInfo(){
+  const el = $("refInfo");
+  if(!REF){ el.textContent = "Zatím žádný vzor."; return; }
+  el.innerHTML = "";
+  const s = document.createElement("strong"); s.textContent = REF.name; el.append(s);
+  const p = document.createElement("div");
+  p.textContent = `Hlavní pohyb: ${JMAP[REF.primary].name.toLowerCase()} (${Math.round(Math.min(REF.start,REF.far))}° až ${Math.round(Math.max(REF.start,REF.far))}°). ` +
+    `Hlídané klouby: ${REF.present.map(id => JMAP[id].name.toLowerCase()).join(", ")}.`;
+  el.append(p);
+}
+function setMode(m){
+  document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", b.dataset.mode === m));
+  $("panelRef").hidden = m !== "ref"; $("panelEx").hidden = m !== "ex";
+  if(m === "ex"){
+    $("exTitle").textContent = REF ? REF.name : "Cvičení";
+    $("btnExStart").disabled = !REF || !landmarker;
+    if(!REF) setStatus("warn", "Nejdřív nahraj vzor v kroku 1");
+    else if(landmarker) setStatus("", "Postav telefon bokem k pacientovi a stiskni Začít cvičit.");
+    buildJointRows();
+  } else if(landmarker) setStatus("", "Připraveno. Nahraj vzor kamerou nebo z videa.");
+}
+document.querySelectorAll(".modes button").forEach(b => b.onclick = () => { stopAll(); setMode(b.dataset.mode); });
+$("rearCam").onchange = () => { $("rearCam2").checked = $("rearCam").checked; };
+$("rearCam2").onchange = () => { $("rearCam").checked = $("rearCam2").checked; };
+
+/* ---------- geometry ---------- */
+function P(lm, i, w, h){ const p = lm[i]; return {x:p.x*w, y:p.y*h, v:p.visibility ?? 1}; }
+function angle(a, b, c){
+  const x1=a.x-b.x, y1=a.y-b.y, x2=c.x-b.x, y2=c.y-b.y, d=Math.hypot(x1,y1)*Math.hypot(x2,y2);
+  if(!d) return null;
+  return Math.acos(Math.max(-1, Math.min(1, (x1*x2+y1*y2)/d))) * 180 / Math.PI;
+}
+const si = i => side === "R" ? (TO_RIGHT[i] ?? i) : i;
+function computeAngles(lm, w, h){
+  const vis = idx => idx.reduce((s,i) => s + (lm[i].visibility ?? 1), 0) / idx.length;
+  side = vis(RIGHT) > vis(LEFT) ? "R" : "L";
+  const out = {};
+  for(const j of JOINTS){
+    const pts = j.p.map(i => P(lm, si(i), w, h));
+    if(pts.some(p => p.v < VIS)){ out[j.id] = null; continue; }
+    if(j.trunk) out[j.id] = Math.atan2(Math.abs(pts[0].x - pts[1].x), pts[1].y - pts[0].y) * 180 / Math.PI;
+    else out[j.id] = angle(pts[0], pts[1], pts[2]);
+  }
+  return out;
+}
+function smoothAngles(a){
+  for(const k in a){
+    if(a[k] == null){ smooth[k] = null; continue; }
+    smooth[k] = smooth[k] == null ? a[k] : smooth[k]*0.5 + a[k]*0.5;
+  }
+  return {...smooth};
+}
+
+/* ---------- repetitions ---------- */
+function makeRepCounter(start, far){
+  let state = "top", leave = 0, bottomT = 0, peak = start; const span = far - start;
+  return {
+    push(v, t){
+      const n = (v - start) / span;
+      if(state === "top"){ if(n > 0.15){ state = "moving"; leave = t; peak = v; } return null; }
+      if(Math.abs(v - start) > Math.abs(peak - start)) peak = v;
+      if(state === "moving" && n > 0.7){ state = "bottom"; bottomT = t; }
+      if(n < 0.1){
+        const full = state === "bottom"; state = "top";
+        return {full, dur:(t - leave)/1000, desc: full ? (bottomT - leave)/1000 : null, peak};
+      }
+      return null;
+    }
+  };
+}
+
+/* ---------- reference ---------- */
+function buildReference(fr, name){
+  if(fr.length < 30) throw new Error("Vzor je moc krátký. Nahraj aspoň jedno celé opakování.");
+  const present = JOINTS.map(j => j.id).filter(id => fr.filter(f => f.a[id] != null).length >= fr.length * 0.7);
+  if(present.length < 2) throw new Error("Ve vzoru nebylo dost dobře vidět tělo. Ať je v záběru celá postava z boku.");
+  let primary = null, best = 0;
+  for(const id of present){
+    const v = fr.map(f => f.a[id]).filter(x => x != null).sort((a,b) => a-b);
+    const lo = v[Math.floor(v.length*.03)], hi = v[Math.floor(v.length*.97)];
+    if(hi - lo > best){ best = hi - lo; primary = id; }
+  }
+  if(best < 25) throw new Error("Ve vzoru není vidět výrazný pohyb. Zkus větší rozsah nebo jiný úhel kamery.");
+  const pv = fr.map(f => f.a[primary]).filter(x => x != null);
+  const sorted = [...pv].sort((a,b) => a-b);
+  const pMin = sorted[Math.floor(sorted.length*.03)], pMax = sorted[Math.floor(sorted.length*.97)];
+  const first = pv.slice(0, 15).sort((a,b) => a-b), s0 = first[Math.floor(first.length/2)];
+  const startAtMax = Math.abs(s0 - pMax) < Math.abs(s0 - pMin);
+  const start = startAtMax ? pMax : pMin, far = startAtMax ? pMin : pMax;
+  const full = fr.filter(f => present.every(id => f.a[id] != null));
+  const refFrames = full.filter((f, i) => i % 2 === 0).map(f => present.map(id => Math.round(f.a[id]*10)/10));
+  const counter = makeRepCounter(start, far), reps = [];
+  for(const f of fr){ if(f.a[primary] == null) continue; const r = counter.push(f.a[primary], f.t); if(r && r.full) reps.push(r); }
+  const refDesc = reps.length ? reps.reduce((s,r) => s + r.desc, 0) / reps.length : null;
+  return {name, primary, start, far, present, frames:refFrames, refDesc, reps:reps.length};
+}
+function finishReference(){
+  const fr = frames; frames = []; mode = "idle";
+  try{
+    REF = buildReference(fr, $("exName").value.trim() || "Cvik");
+    saveRef(); renderRefInfo();
+    setStatus("good", "Vzor uložený. Přepni na krok 2 a zkus si to.", 2500);
+  }catch(e){
+    const el = $("refInfo"); el.innerHTML = ""; const d = document.createElement("div"); d.className = "err"; d.textContent = e.message; el.append(d);
+    setStatus("warn", e.message, 3000);
+  }
+  $("btnRecStop").disabled = true; $("btnRecStart").disabled = false;
+}
+$("btnDefault").onclick = () => { REF = DEFAULT_REF; try{ localStorage.removeItem("fyzio-ref-v2"); }catch(e){} renderRefInfo(); setStatus("good", "Použit vzor z videa.", 1500); };
+
+/* ---------- camera ---------- */
+async function startCamera(){
+  stopStream();
+  video.removeAttribute("src");
+  const rear = $("rearCam").checked;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode: rear ? "environment" : "user", width:{ideal:1280}, height:{ideal:720}}, audio:false});
+  }catch(e){
+    setStatus("warn", "Kamera není dostupná. Povol přístup ke kameře v prohlížeči.");
+    throw e;
+  }
+  video.srcObject = stream;
+  cam.classList.toggle("mirror", !rear);
+  await video.play();
+}
+function stopStream(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } video.srcObject = null; }
+function stopAll(){ mode = "idle"; stopStream(); video.pause(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
+  $("btnRecStop").disabled = true; $("btnRecStart").disabled = !landmarker; $("btnExStop").disabled = true; $("btnExStart").disabled = !REF || !landmarker; }
+function countdown(n){
+  return new Promise(res => {
+    const el = $("countdown"); el.hidden = false; el.textContent = n;
+    const iv = setInterval(() => { n--; if(n <= 0){ clearInterval(iv); el.hidden = true; res(); } else el.textContent = n; }, 1000);
+  });
+}
+
+$("btnRecStart").onclick = async () => {
+  $("btnRecStart").disabled = true;
+  try{ await startCamera(); }catch(e){ $("btnRecStart").disabled = false; return; }
+  setStatus("", "Postav se do záběru…");
+  await countdown(3);
+  frames = []; smooth = {}; mode = "recording";
+  $("btnRecStop").disabled = false;
+  setStatus("", "Nahrávám vzor. Udělej 1 až 5 správných opakování, pak Uložit vzor.");
+};
+$("btnRecStop").onclick = () => { stopStream(); finishReference(); };
+
+$("fileIn").onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  stopAll(); cam.classList.remove("mirror");
+  video.src = URL.createObjectURL(f); video.muted = true;
+  frames = []; smooth = {}; mode = "uploading";
+  setStatus("", "Zpracovávám video…");
+  video.onended = () => { if(mode === "uploading") finishReference(); };
+  video.play();
+};
+
+/* ---------- exercise ---------- */
+let counter = null, errSince = {}, repCount = 0, lastBars = 0, cur = null;
+function buildJointRows(){
+  const ul = $("joints"); ul.innerHTML = "";
+  if(!REF) return;
+  for(const id of REF.present){
+    const li = document.createElement("li"); li.dataset.id = id;
+    if(id === REF.primary) li.className = "primary";
+    li.innerHTML = `<span></span><span class="bar"><i></i></span><span class="num">-</span>`;
+    li.firstChild.textContent = JMAP[id].name;
+    ul.append(li);
+  }
+}
+$("tol").oninput = () => $("tolOut").textContent = $("tol").value + "°";
+
+$("btnExStart").onclick = async () => {
+  if(!REF) return;
+  speak("Připrav se", true);
+  $("btnExStart").disabled = true;
+  try{ await startCamera(); }catch(e){ $("btnExStart").disabled = false; return; }
+  setStatus("", "Postav se bokem do záběru…");
+  await countdown(3);
+  counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; smooth = {}; cur = null;
+  $("repCount").textContent = "0"; $("log").innerHTML = "";
+  mode = "exercise"; $("btnExStop").disabled = false;
+  speak("Začni", true);
+};
+$("btnExStop").onclick = () => { const n = repCount; stopAll(); setStatus("", `Hotovo, ${n} opakování.`); };
+
+function matchRef(a){
+  const live = REF.present.map(id => a[id]);
+  const known = live.filter(v => v != null).length;
+  const drop = known >= 4 ? 2 : known >= 3 ? 1 : 0;
+  let best = Infinity, bi = 0;
+  for(let k = 0; k < REF.frames.length; k++){
+    const f = REF.frames[k], d = [];
+    for(let m = 0; m < f.length; m++) if(live[m] != null) d.push(Math.abs(live[m] - f[m]));
+    d.sort((x,y) => x-y);
+    let s = 0; for(let q = 0; q < d.length - drop; q++) s += d[q];
+    if(s < best){ best = s; bi = k; }
+  }
+  return REF.frames[bi];
+}
+
+function exerciseStep(a, t){
+  const tol = +$("tol").value, flags = {}, diffs = {};
+  const pv = a[REF.primary];
+  if(pv == null){ setStatus("warn", "Nevidím celé tělo. Posuň telefon dál a natoč pacienta bokem."); return flags; }
+  const exp = matchRef(a);
+  let worst = null;
+  REF.present.forEach((id, m) => {
+    const v = a[id]; if(v == null){ diffs[id] = null; delete errSince[id]; return; }
+    const d = v - exp[m]; diffs[id] = d;
+    if(Math.abs(d) > tol){
+      errSince[id] ??= t;
+      if(t - errSince[id] >= HOLD){
+        flags[id] = true;
+        const over = Math.abs(d) - tol;
+        if(!worst || over > worst.over) worst = {id, over};
+      }
+    } else delete errSince[id];
+  });
+  if(worst && cur && flags[cur]) worst = {id:cur};
+  cur = worst ? worst.id : null;
+
+  const r = counter.push(pv, t);
+  if(r){
+    if(r.full){
+      repCount++; $("repCount").textContent = repCount;
+      const notes = [];
+      if(Math.abs(r.peak - REF.far) > tol) notes.push("Jdi víc do pohybu");
+      if(REF.refDesc && r.desc < REF.refDesc * TEMPO) notes.push("Zpomal");
+      if(notes.length){ setStatus("warn", `${repCount}. ${notes.join(", ")}`, 1800); speak(`${repCount}. ${notes.join(". ")}`, true); }
+      else { setStatus("good", `${repCount}. Výborně`, 1200); speak(String(repCount), true); }
+      logLine(`${repCount}. opakování: ${notes.length ? notes.join(", ").toLowerCase() : "v pořádku"} (${r.dur.toFixed(1)} s)`);
+    } else {
+      setStatus("warn", "Nedokončené opakování, jdi víc do pohybu", 1800);
+      speak("Jdi víc do pohybu", true);
+      logLine("Nedokončené opakování");
+    }
+  } else if(cur){
+    const msg = diffs[cur] > 0 ? JMAP[cur].hi : JMAP[cur].lo;
+    setStatus("bad", msg); speak(msg);
+  } else {
+    setStatus("good", "Správně");
+  }
+
+  if(t - lastBars > 100){
+    lastBars = t;
+    document.querySelectorAll("#joints li").forEach(li => {
+      const d = diffs[li.dataset.id], bar = li.querySelector("i"), num = li.querySelector(".num");
+      if(d == null){ bar.style.width = "0"; num.textContent = "-"; return; }
+      bar.style.width = Math.min(100, Math.abs(d) / (tol*2) * 100) + "%";
+      bar.classList.toggle("bad", Math.abs(d) > tol);
+      num.textContent = Math.round(Math.abs(d)) + "°";
+    });
+  }
+  return flags;
+}
+
+/* ---------- drawing ---------- */
+function draw(lm, flags, W, H){
+  const lw = Math.max(3, Math.min(W,H)/140), r = Math.max(5, Math.min(W,H)/90);
+  const ok = i => (lm[si(i)].visibility ?? 1) >= VIS;
+  const X = i => lm[si(i)].x*W, Y = i => lm[si(i)].y*H;
+  ctx.lineCap = "round"; ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.9)";
+  for(const [a,b] of CONN){
+    if(!ok(a) || !ok(b)) continue;
+    ctx.beginPath(); ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)); ctx.stroke();
+  }
+  const active = REF && mode === "exercise" ? REF.present : JOINTS.map(j => j.id);
+  for(const id of active){
+    const j = JMAP[id];
+    let x, y;
+    if(j.trunk){ if(!ok(11) || !ok(23)) continue; x = (X(11)+X(23))/2; y = (Y(11)+Y(23))/2; }
+    else { if(!ok(j.p[1])) continue; x = X(j.p[1]); y = Y(j.p[1]); }
+    const bad = flags[id];
+    ctx.beginPath(); ctx.arc(x, y, bad ? r*1.9 : r, 0, Math.PI*2);
+    ctx.fillStyle = bad ? "#FF4D3A" : (mode === "exercise" ? "#2BD48A" : "#8FA6FF"); ctx.fill();
+    if(bad){ ctx.lineWidth = lw; ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.strokeStyle = "rgba(255,255,255,.9)"; }
+  }
+}
+
+/* ---------- main loop ---------- */
+function loop(){
+  requestAnimationFrame(loop);
+  if(!landmarker || video.readyState < 2 || video.paused) return;
+  if(video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const W = video.videoWidth, H = video.videoHeight; if(!W) return;
+  if(canvas.width !== W || canvas.height !== H){ canvas.width = W; canvas.height = H; cam.style.aspectRatio = `${W}/${H}`; }
+  const t = performance.now();
+  let res; try{ res = landmarker.detectForVideo(video, t); }catch(e){ return; }
+  ctx.clearRect(0, 0, W, H);
+  const lm = res.landmarks?.[0];
+  if(!lm){
+    smooth = {};
+    if(mode === "exercise" || mode === "recording") setStatus("warn", "Nevidím tě. Postav se celý do záběru.");
+    return;
+  }
+  const a = smoothAngles(computeAngles(lm, W, H));
+  let flags = {};
+  if(mode === "recording") frames.push({t, a});
+  else if(mode === "uploading") frames.push({t: video.currentTime*1000, a});
+  else if(mode === "exercise") flags = exerciseStep(a, t);
+  draw(lm, flags, W, H);
+}
+
+/* ---------- init ---------- */
+async function init(){
+  loadRef(); renderRefInfo();
+  try{
+    const vision = await FilesetResolver.forVisionTasks(new URL("./vendor/mediapipe/wasm", location.href).href);
+    const opts = d => ({baseOptions:{modelAssetPath:new URL("./models/pose_landmarker_full.task", location.href).href, delegate:d}, runningMode:"VIDEO", numPoses:1});
+    try{ landmarker = await PoseLandmarker.createFromOptions(vision, opts("GPU")); }
+    catch(e){ landmarker = await PoseLandmarker.createFromOptions(vision, opts("CPU")); }
+    $("btnRecStart").disabled = false; $("fileIn").disabled = false;
+    setMode("ex");
+  }catch(e){
+    setStatus("warn", "Model se nepodařilo načíst. Zkontroluj připojení a obnov stránku.");
+  }
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>
