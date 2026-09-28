@@ -102,6 +102,18 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .paired{font-size:.85rem;color:var(--good);font-weight:500;margin:-6px 0 12px}
 .hist{list-style:none;padding:0!important;font-size:.85rem}
 .hist li{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)}
+.refpip{position:absolute;left:10px;top:10px;width:34%;max-width:320px;border-radius:8px;overflow:hidden;background:#000;border:2px solid var(--brand);box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;z-index:2}
+.refpip.big{width:50%;max-width:520px}
+.refpip video{display:block;width:100%;height:auto}
+.refpip.flip video{transform:scaleX(-1)}
+.refpip span{position:absolute;left:6px;top:6px;background:var(--brand);color:var(--accent-ink);font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px}
+.prec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.prec h3{font-size:1rem;font-weight:500;margin:0 0 4px}
+.prec p{font-size:.85rem}
+.prow{display:grid;grid-template-columns:auto 1fr 52px;gap:4px 10px;align-items:center;font-size:.88rem;margin-bottom:8px}
+.prow input[type=range]{grid-column:1 / -1;width:100%}
+.prow output{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.prow.off{opacity:.5}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
@@ -123,6 +135,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
   <div class="layout">
     <div class="cam" id="cam">
       <video id="video" playsinline muted></video>
+      <div class="refpip" id="refPip" hidden title="Klepnutím zvětšíš / zmenšíš"><video id="refVideo" playsinline muted preload="auto"></video><span>Vzor</span></div>
       <canvas id="overlay"></canvas>
       <div class="countdown" id="countdown" hidden></div>
       <div class="status" id="status">Načítám model pro rozpoznání postavy…</div>
@@ -145,6 +158,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
         </label>
         <div class="refinfo" id="refInfo">Zatím žádný vzor.</div>
         <button class="btn" id="btnDefault" style="margin-top:10px">Použít vzor z videa (dřep)</button>
+        <div class="prec" id="prec"></div>
       </section>
 
       <section id="panelEx">
@@ -153,7 +167,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
           <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
         </label>
         <div class="paired" id="pairedNote" hidden></div>
-        <div class="reps"><b id="repCount">0</b><span>opakování</span></div>
+        <div class="reps"><b id="repCount">0</b><span id="repOf">opakování</span></div>
         <div class="row">
           <button class="btn primary" id="btnExStart">Začít cvičit</button>
           <button class="btn" id="btnExStop" disabled>Konec</button>
@@ -162,10 +176,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
         <div class="row" id="demoRow" hidden>
           <button class="btn" id="btnDemo">Přehrát ukázku od terapeuta</button>
         </div>
-        <div class="tol">
-          <label for="tol">Tolerance odchylky: <output id="tolOut">15°</output></label>
-          <input type="range" id="tol" min="8" max="30" value="15">
-        </div>
+        <label class="check"><input type="checkbox" id="showRef" checked> Ukazovat vzor vedle mě (sleduje můj pohyb)</label>
         <label class="check"><input type="checkbox" id="voice" checked> Hlasové pokyny</label>
         <label class="check"><input type="checkbox" id="rearCam2"> Zadní kamera (točím někoho jiného)</label>
         <ul class="joints" id="joints"></ul>
@@ -188,7 +199,7 @@ let DEFAULT_REF = null;
 const DEFAULT_REF_URL = "refs/drep.json";
 const DEBUG = new URLSearchParams(location.search).has("debug");
 
-const VIS = 0.5, HOLD = 400, TEMPO = 0.25;
+const VIS = 0.5;
 const JOINTS = [
   {id:"knee", name:"Koleno", p:[23,25,27], hi:"Víc pokrč kolena", lo:"Víc propni kolena"},
   {id:"hip", name:"Kyčel", p:[11,23,25], hi:"Víc se ohni v kyčlích", lo:"Víc propni kyčle"},
@@ -211,11 +222,107 @@ let smooth = {}, lastVideoTime = -1, lastDetectT = 0;
 
 /* ---------- storage ---------- */
 async function loadRef(){
-  try{ DEFAULT_REF = await (await fetch(DEFAULT_REF_URL)).json(); }catch(e){}
+  try{ DEFAULT_REF = await (await fetch(DEFAULT_REF_URL, {cache: "no-cache"})).json(); }catch(e){}
   try{ const s = localStorage.getItem("fyzio-ref-v2"); if(s) REF = JSON.parse(s); }catch(e){}
   if(!REF) REF = DEFAULT_REF;
 }
 function saveRef(){ try{ localStorage.setItem("fyzio-ref-v2", JSON.stringify(REF)); }catch(e){} }
+
+/* ---------- přesnost provedení (nastavuje terapeut, ukládá se k cviku) ---------- */
+const SET_KEY = "fyzio-settings-v1";
+function defaultSettings(){ return {tol: 15, joints: {}, depth: {on: true, tol: 15}, tempo: {on: true, ratio: 0.25}, hold: 0.4, plan: {reps: 10, sets: 1, rest: 30}}; }
+let ACTIVE_ITEM = null;  // položka sestavy od terapeuta, když pacient cvičí podle ní (přebíjí místní nastavení)
+function S(){  // aktuální nastavení pro REF (výchozí + uložené úpravy)
+  const d = defaultSettings();
+  if(!REF) return d;
+  let saved = REF.settings || null;
+  try{ saved = JSON.parse(localStorage.getItem(SET_KEY) || "{}")[REF.name] || saved; }catch(e){}
+  const st = saved ? {...d, ...saved, depth: {...d.depth, ...saved.depth}, tempo: {...d.tempo, ...saved.tempo}, joints: {...saved.joints}, plan: {...d.plan, ...saved.plan}} : d;
+  const it = ACTIVE_ITEM;
+  if(it && it.ref === REF.id){
+    Object.assign(st.plan, {reps: it.reps ?? st.plan.reps, sets: it.sets ?? st.plan.sets, rest: it.rest ?? st.plan.rest});
+    const pr = it.precision || {};
+    if(pr.tol != null){ st.tol = pr.tol; for(const k in st.joints) delete st.joints[k].tol; }
+    if(pr.depth != null) st.depth.on = pr.depth;
+    if(pr.tempo != null) st.tempo.on = pr.tempo;
+  }
+  return st;
+}
+function saveSettings(st){
+  try{ const all = JSON.parse(localStorage.getItem(SET_KEY) || "{}"); all[REF.name] = st; localStorage.setItem(SET_KEY, JSON.stringify(all)); }catch(e){}
+}
+const jOn = (st, id) => st.joints[id]?.on !== false;
+const jTol = (st, id) => st.joints[id]?.tol ?? st.tol;
+function renderSettings(){
+  const box = $("prec"); box.innerHTML = "";
+  if(!REF) return;
+  const st = S();
+  const h = document.createElement("h3"); h.textContent = "Přesnost provedení";
+  const p = document.createElement("p"); p.textContent = "Menší tolerance = přísnější. Vypnutý bod aplikace nehlásí (pořád ho ale používá k určení fáze pohybu).";
+  box.append(h, p);
+  const row = (label, on, onToggle, val, min, max, step, fmt, onInput) => {
+    const d = document.createElement("div"); d.className = "prow" + (on === false ? " off" : "");
+    const lab = document.createElement("label");
+    if(on != null){ const c = document.createElement("input"); c.type = "checkbox"; c.checked = on; c.onchange = () => { onToggle(c.checked); d.classList.toggle("off", !c.checked); }; lab.append(c, " "); }
+    lab.append(label);
+    const out = document.createElement("output"); out.textContent = fmt(val);
+    const r = document.createElement("input"); r.type = "range"; r.min = min; r.max = max; r.step = step; r.value = val; r.setAttribute("aria-label", label);
+    r.oninput = () => { out.textContent = fmt(+r.value); onInput(+r.value); };
+    d.append(lab, document.createElement("span"), out, r);
+    box.append(d);
+  };
+  const upd = fn => { const cur = S(); fn(cur); saveSettings(cur); buildJointRows(); };
+  for(const id of REF.present){
+    const j = JMAP[id];
+    if(!j.hi && !j.lo) continue;
+    row(j.name, jOn(st, id), v => upd(c => { c.joints[id] = {...c.joints[id], on: v}; }),
+      jTol(st, id), 5, 40, 1, v => v + "°", v => upd(c => { c.joints[id] = {...c.joints[id], tol: v}; }));
+  }
+  row("Hloubka pohybu", st.depth.on, v => upd(c => { c.depth.on = v; }), st.depth.tol, 5, 40, 1, v => v + "°", v => upd(c => { c.depth.tol = v; }));
+  row("Tempo (nejrychlejší povolené)", st.tempo.on, v => upd(c => { c.tempo.on = v; }), Math.round(st.tempo.ratio*100), 10, 100, 5, v => v + " %", v => upd(c => { c.tempo.ratio = v/100; }));
+  row("Chybu hlásit po", null, null, st.hold, 0.2, 1.5, 0.1, v => v.toFixed(1) + " s", v => upd(c => { c.hold = v; }));
+  const h2 = document.createElement("h3"); h2.textContent = "Kolikrát cvičit"; h2.style.marginTop = "12px"; box.append(h2);
+  row("Opakování v sérii", null, null, st.plan.reps, 1, 30, 1, v => v + "×", v => upd(c => { c.plan.reps = v; }));
+  row("Počet sérií", null, null, st.plan.sets, 1, 6, 1, v => String(v), v => upd(c => { c.plan.sets = v; }));
+  row("Pauza mezi sériemi", null, null, st.plan.rest, 10, 180, 5, v => v + " s", v => upd(c => { c.plan.rest = v; }));
+  if(ACTIVE_ITEM && ACTIVE_ITEM.ref === REF.id){ const n = document.createElement("p"); n.textContent = "Pacient teď cvičí podle sestavy od terapeuta, ta má přednost."; box.append(n); }
+  const reset = document.createElement("button"); reset.className = "btn"; reset.type = "button"; reset.textContent = "Obnovit výchozí";
+  reset.onclick = () => { try{ const all = JSON.parse(localStorage.getItem(SET_KEY) || "{}"); delete all[REF.name]; localStorage.setItem(SET_KEY, JSON.stringify(all)); }catch(e){} renderSettings(); buildJointRows(); };
+  box.append(reset);
+}
+
+/* ---------- video vzoru (knihovna = soubor, vlastní nahrávka = jen v tomto telefonu, IndexedDB) ---------- */
+function idb(){ return new Promise((res, rej) => { const r = indexedDB.open("kinisi", 1); r.onupgradeneeded = () => r.result.createObjectStore("blobs"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbPut(key, blob){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction("blobs", "readwrite"); tx.objectStore("blobs").put(blob, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+async function idbGet(key){ const db = await idb(); return new Promise((res, rej) => { const q = db.transaction("blobs").objectStore("blobs").get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+const refVideo = $("refVideo"); let refVideoUrl = null, lastSeek = 0;
+async function loadRefVideo(){
+  if(refVideoUrl?.startsWith("blob:")) URL.revokeObjectURL(refVideoUrl);
+  refVideoUrl = null; refVideo.removeAttribute("src");
+  if(!REF?.video || !REF.times) return;
+  try{
+    if(REF.video.startsWith("idb:")){ const b = await idbGet(REF.video.slice(4)); if(!b) return; refVideoUrl = URL.createObjectURL(b); }
+    else refVideoUrl = REF.video;
+    refVideo.src = refVideoUrl; refVideo.load();
+  }catch(e){ refVideoUrl = null; }
+}
+function showRefPip(on){
+  const ok = on && refVideoUrl && $("showRef").checked;
+  $("refPip").hidden = !ok;
+  if(!ok) return;
+  // Vzor natočit stejným směrem, jakým pacient vidí sám sebe na displeji.
+  const shownLive = (facing || 0) * (cam.classList.contains("mirror") ? -1 : 1);
+  $("refPip").classList.toggle("flip", !!(REF.facing && shownLive && REF.facing !== shownLive));
+}
+function followRef(idx){
+  if($("refPip").hidden || !REF.times) return;
+  showRefPip(true);
+  const target = REF.times[idx], now = performance.now();
+  if(target == null || refVideo.seeking || now - lastSeek < 80 || Math.abs(refVideo.currentTime - target) < 0.04) return;
+  lastSeek = now; refVideo.currentTime = target;
+}
+$("refPip").onclick = () => $("refPip").classList.toggle("big");
+$("showRef").onchange = () => showRefPip(mode === "exercise");
 
 /* ---------- UI helpers ---------- */
 let statusHoldUntil = 0;
@@ -255,6 +362,7 @@ function logLine(text){
   while(log.children.length > 6) log.lastChild.remove();
 }
 function renderRefInfo(){
+  renderSettings(); loadRefVideo();
   const el = $("refInfo");
   if(!REF){ el.textContent = "Zatím žádný vzor."; return; }
   el.innerHTML = "";
@@ -381,7 +489,7 @@ function makeRepCounter(start, far){
 }
 
 /* ---------- reference ---------- */
-function buildReference(fr, name){
+function buildReference(fr, name, t0 = 0){
   if(fr.length < 30) throw new Error("Vzor je moc krátký. Nahraj aspoň jedno celé opakování.");
   const present = JOINTS.map(j => j.id).filter(id => fr.filter(f => f.a[id] != null).length >= fr.length * 0.7);
   if(present.length < 2) throw new Error("Ve vzoru nebylo dost dobře vidět tělo. Ať je v záběru celá postava z boku.");
@@ -399,16 +507,20 @@ function buildReference(fr, name){
   const startAtMax = Math.abs(s0 - pMax) < Math.abs(s0 - pMin);
   const start = startAtMax ? pMax : pMin, far = startAtMax ? pMin : pMax;
   const full = fr.filter(f => present.every(id => f.a[id] != null));
-  const refFrames = full.filter((f, i) => i % 2 === 0).map(f => present.map(id => Math.round(f.a[id]*10)/10));
+  const kept = full.filter((f, i) => i % 2 === 0);
+  const refFrames = kept.map(f => present.map(id => Math.round(f.a[id]*10)/10));
+  const times = kept.map(f => Math.round((f.t - t0) / 10) / 100);  // čas snímku ve videu vzoru (s)
+  const fs = fr.map(f => f.f).filter(Boolean), refFacing = fs.length ? Math.sign(fs.reduce((x,y) => x+y, 0)) || null : null;
   const counter = makeRepCounter(start, far), reps = [];
   for(const f of fr){ if(f.a[primary] == null) continue; const r = counter.push(f.a[primary], f.t); if(r && r.full) reps.push(r); }
   const refDesc = reps.length ? reps.reduce((s,r) => s + r.desc, 0) / reps.length : null;
-  return {name, primary, start, far, present, frames:refFrames, refDesc, reps:reps.length};
+  return {name, primary, start, far, present, frames:refFrames, times, facing: refFacing, refDesc, reps:reps.length};
 }
-function finishReference(){
+function finishReference(t0 = 0, videoBlob = null){
   const fr = frames; frames = []; mode = "idle";
   try{
-    REF = buildReference(fr, $("exName").value.trim() || "Cvik");
+    REF = buildReference(fr, $("exName").value.trim() || "Cvik", t0);
+    if(videoBlob){ REF.video = "idb:ref-video"; idbPut("ref-video", videoBlob).then(loadRefVideo).catch(() => {}); }
     saveRef(); renderRefInfo();
     setStatus("good", "Vzor uložený. Přepni na krok 2 a zkus si to.", 2500);
   }catch(e){
@@ -436,7 +548,7 @@ async function startCamera(){
 }
 function stopStream(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } video.srcObject = null; }
 function unloadFile(){ video.pause(); video.onended = null; video.ontimeupdate = null; if(video.getAttribute("src")){ video.removeAttribute("src"); video.load(); } video.muted = true; $("btnDemo").textContent = "Přehrát ukázku od terapeuta"; }
-function stopAll(){ if(mode === "exercise" && sess) endSession(); mode = "idle"; stopStream(); unloadFile(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
+function stopAll(){ if((mode === "exercise" || mode === "rest" || mode === "done") && sess) endSession(); mode = "idle"; showRefPip(false); stopStream(); unloadFile(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
   $("btnRecStop").disabled = true; $("btnRecStart").disabled = !landmarker; $("btnExStop").disabled = true; $("btnExStart").disabled = !REF || !landmarker; }
 function countdown(n){
   return new Promise(res => {
@@ -451,10 +563,27 @@ $("btnRecStart").onclick = async () => {
   setStatus("", "Postav se do záběru…");
   await countdown(3);
   frames = []; smooth = {}; mode = "recording";
+  recChunks = []; recorder = null;
+  try{
+    const mime = ["video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => window.MediaRecorder?.isTypeSupported?.(m));
+    recorder = new MediaRecorder(stream, mime ? {mimeType: mime, videoBitsPerSecond: 1500000} : undefined);
+    recorder.ondataavailable = e => { if(e.data.size) recChunks.push(e.data); };
+    recorder.start(1000);
+  }catch(e){ recorder = null; }  // bez nahrávání videa vzor funguje dál, jen bez ukázky vedle pacienta
+  recStart = performance.now();
   $("btnRecStop").disabled = false;
   setStatus("", "Nahrávám vzor. Udělej 1 až 5 správných opakování, pak Uložit vzor.");
 };
-$("btnRecStop").onclick = () => { stopStream(); finishReference(); };
+let recorder = null, recChunks = [], recStart = 0;
+$("btnRecStop").onclick = async () => {
+  $("btnRecStop").disabled = true;
+  let blob = null;
+  if(recorder && recorder.state !== "inactive"){
+    await new Promise(res => { recorder.onstop = res; recorder.stop(); });
+    if(recChunks.length) blob = new Blob(recChunks, {type: recorder.mimeType || "video/webm"});
+  }
+  stopStream(); finishReference(recStart, blob);
+};
 
 $("fileIn").onchange = e => {
   const f = e.target.files[0]; if(!f) return;
@@ -462,7 +591,7 @@ $("fileIn").onchange = e => {
   video.src = URL.createObjectURL(f); video.muted = true;
   frames = []; smooth = {}; mode = "uploading";
   setStatus("", "Zpracovávám video…");
-  video.onended = () => { if(mode === "uploading") finishReference(); };
+  video.onended = () => { if(mode === "uploading") finishReference(0, f); };
   video.play();
 };
 
@@ -491,7 +620,8 @@ function saveHistory(h){ try{ localStorage.setItem(HIST_KEY, JSON.stringify(h.sl
 function lastSession(name, beforeId){ return loadHistory().filter(x => x.ex === name && x.id !== beforeId && x.bestRange != null).pop() || null; }
 function newRepAcc(){ return {frames:0, bad:0, err:{}, dev:-1, pose:null}; }
 function startSession(){
-  sess = {id: Date.now(), ex: REF.name, primary: REF.primary, date: new Date().toISOString(), t0: performance.now(), reps: [], acc: newRepAcc(), bestRange: null, pose: null};
+  const pl = S().plan;
+  sess = {id: Date.now(), ex: REF.name, primary: REF.primary, plan: {reps: pl.reps, sets: pl.sets}, date: new Date().toISOString(), t0: performance.now(), reps: [], acc: newRepAcc(), bestRange: null, pose: null};
   ghost = lastSession(REF.name)?.pose || null;
   $("summary").hidden = true;
 }
@@ -525,7 +655,7 @@ function endSession(){
     reps: full.length, incomplete: s.reps.length - full.length,
     good: full.filter(r => !r.errors.length && !r.notes.length).length,
     score: full.length ? Math.round(full.reduce((x,r) => x + r.score, 0) / full.length) : 0,
-    errors: {}, bestRange: s.bestRange, pose: s.pose, pain: null, effort: null};
+    errors: {}, bestRange: s.bestRange, pose: s.pose, pain: null, effort: null, plan: s.plan, sets: setNo};
   for(const r of s.reps) for(const m of [...r.errors, ...r.notes]) rec.errors[m] = (rec.errors[m] || 0) + 1;
   const h = loadHistory(); h.push(rec); saveHistory(h);
   renderSummary(rec);
@@ -575,6 +705,7 @@ function summaryText(rec){
     `${fmtDate(rec.date)}, délka ${fmtDur(rec.dur)}`,
     `Opakování: ${rec.reps} (správně ${rec.good})${rec.incomplete ? `, nedokončená: ${rec.incomplete}` : ""}, skóre ${rec.score} %`
   ];
+  if(rec.plan) lines.push(`Plán: ${rec.plan.sets} × ${rec.plan.reps}, splněno ${Math.min(100, Math.round(rec.reps / (rec.plan.sets * rec.plan.reps) * 100))} %`);
   if(rec.bestRange != null) lines.push(`Rozsah pohybu (${jn}): ${rec.bestRange}°` + (dl ? `, minule ${dl.prev.bestRange}° (${dl.kind === "same" ? "beze změny" : (dl.d > 0 ? "+" : "") + dl.d + "°"})` : ""));
   const errs = Object.entries(rec.errors).sort((a,b) => b[1]-a[1]);
   lines.push(errs.length ? "Chyby: " + errs.map(([m,n]) => `${m} ${n}×`).join(", ") : "Chyby: žádné");
@@ -594,6 +725,7 @@ function renderSummary(rec){
   const d = el("dl");
   const row = (k, ...v) => d.append(el("dt", {textContent: k}), el("dd", {}, ...v));
   row("Opakování", `${rec.reps} (správně ${rec.good})` + (rec.incomplete ? `, nedokončená ${rec.incomplete}` : ""));
+  if(rec.plan) row("Plán", `${rec.plan.sets} × ${rec.plan.reps} · splněno ${Math.min(100, Math.round(rec.reps / (rec.plan.sets * rec.plan.reps) * 100))} %`);
   row("Skóre", `${rec.score} %`);
   row("Délka", fmtDur(rec.dur));
   if(rec.bestRange != null){
@@ -644,7 +776,29 @@ function renderSummary(rec){
 }
 
 /* ---------- exercise ---------- */
-let counter = null, errSince = {}, repCount = 0, lastBars = 0, cur = null;
+let counter = null, errSince = {}, repCount = 0, lastBars = 0, cur = null, setNo = 1, setReps = 0;
+function showReps(){
+  const pl = S().plan;
+  $("repCount").textContent = setReps;
+  $("repOf").textContent = `z ${pl.reps} opakování` + (pl.sets > 1 ? ` · série ${setNo}/${pl.sets}` : "");
+}
+// Série hotová: pauza s odpočtem, nebo konec celého cvičení.
+async function finishSet(){
+  const pl = S().plan;
+  if(setNo >= pl.sets){
+    mode = "done"; speak("Hotovo. Výborně!", true); setStatus("good", "Hotovo, výborně!", 2500);
+    setTimeout(() => $("btnExStop").onclick(), 1500);
+    return;
+  }
+  mode = "rest";
+  speak(`Série hotová. Pauza ${pl.rest} sekund.`, true);
+  setStatus("", `Série ${setNo} hotová. Pauza…`, 1);
+  await countdown(pl.rest);
+  if(mode !== "rest") return;  // mezitím ukončeno
+  setNo++; setReps = 0; showReps();
+  counter = makeRepCounter(REF.start, REF.far); errSince = {}; cur = null; smooth = {};
+  statusHoldUntil = 0; mode = "exercise"; speak("Další série. Začni.", true);
+}
 function buildJointRows(){
   const ul = $("joints"); ul.innerHTML = "";
   if(!REF) return;
@@ -656,7 +810,6 @@ function buildJointRows(){
     ul.append(li);
   }
 }
-$("tol").oninput = () => $("tolOut").textContent = $("tol").value + "°";
 
 $("btnExStart").onclick = async () => {
   if(!REF) return;
@@ -665,12 +818,13 @@ $("btnExStart").onclick = async () => {
   $("btnExStart").disabled = true;
   try{ await startCamera(); }catch(e){ $("btnExStart").disabled = false; return; }
   setStatus("", REF.setup?.length ? REF.setup.join(" ") : "Postav se bokem do záběru…", 1);
+  showRefPip(true); if(REF.times) refVideo.currentTime = REF.times[0];
   await spoken;
   statusHoldUntil = 0;
   setStatus("", "Postav se bokem do záběru…");
   await countdown(3);
   counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; smooth = {}; cur = null;
-  $("repCount").textContent = "0"; $("log").innerHTML = "";
+  setNo = 1; setReps = 0; showReps(); $("log").innerHTML = "";
   startSession();
   mode = "exercise"; $("btnExStop").disabled = false;
   speak("Začni", true);
@@ -694,11 +848,13 @@ function matchRef(a){
     let s = 0; for(let q = 0; q < d.length - drop; q++) s += d[q];
     if(s < best){ best = s; bi = k; }
   }
+  lastMatch = bi;
   return REF.frames[bi];
 }
+let lastMatch = 0, DEBUG_NOPLAN = false;
 
 function exerciseStep(a, t, lm, W, H){
-  const tol = +$("tol").value, flags = {}, diffs = {};
+  const st = S(), flags = {}, diffs = {}, hold = st.hold * 1000;
   const pv = a[REF.primary];
   if(pv == null){ setStatus("warn", "Nevidím celé tělo. Posuň telefon dál a natoč pacienta bokem."); return flags; }
   const exp = matchRef(a);
@@ -706,9 +862,10 @@ function exerciseStep(a, t, lm, W, H){
   REF.present.forEach((id, m) => {
     const v = a[id]; if(v == null){ diffs[id] = null; delete errSince[id]; return; }
     const d = v - exp[m]; diffs[id] = d;
-    if(Math.abs(d) > tol && (d > 0 ? JMAP[id].hi : JMAP[id].lo)){
+    const tol = jTol(st, id);
+    if(jOn(st, id) && Math.abs(d) > tol && (d > 0 ? JMAP[id].hi : JMAP[id].lo)){
       errSince[id] ??= t;
-      if(t - errSince[id] >= HOLD){
+      if(t - errSince[id] >= hold){
         flags[id] = true;
         const over = Math.abs(d) - tol;
         if(!worst || over > worst.over) worst = {id, over};
@@ -718,18 +875,20 @@ function exerciseStep(a, t, lm, W, H){
   if(worst && cur && flags[cur]) worst = {id:cur};
   cur = worst ? worst.id : null;
   if(lm) recordFrame(a, flags, diffs, lm, W, H);
+  followRef(lastMatch);
 
   const r = counter.push(pv, t);
   if(r){
     if(r.full){
-      repCount++; $("repCount").textContent = repCount;
+      repCount++; setReps++; showReps();
       const notes = [];
-      if(Math.abs(r.peak - REF.far) > tol) notes.push("Jdi víc do pohybu");
-      if(REF.refDesc && r.desc < REF.refDesc * TEMPO) notes.push("Zpomal");
+      if(st.depth.on && Math.abs(r.peak - REF.far) > st.depth.tol) notes.push("Jdi víc do pohybu");
+      if(st.tempo.on && REF.refDesc && r.desc < REF.refDesc * st.tempo.ratio) notes.push("Zpomal");
       if(sess) recordRep(r, notes);
       if(notes.length){ setStatus("warn", `${repCount}. ${notes.join(", ")}`, 1800); speak(`${repCount}. ${notes.join(". ")}`, true); }
       else { setStatus("good", `${repCount}. Výborně`, 1200); speak(String(repCount), true); }
       logLine(`${repCount}. opakování: ${notes.length ? notes.join(", ").toLowerCase() : "v pořádku"} (${r.dur.toFixed(1)} s)`);
+      if(mode === "exercise" && setReps >= S().plan.reps && !DEBUG_NOPLAN) setTimeout(finishSet, 1200);
     } else {
       if(sess) recordRep(r, []);
       setStatus("warn", "Nedokončené opakování, jdi víc do pohybu", 1800);
@@ -748,8 +907,9 @@ function exerciseStep(a, t, lm, W, H){
     document.querySelectorAll("#joints li").forEach(li => {
       const d = diffs[li.dataset.id], bar = li.querySelector("i"), num = li.querySelector(".num");
       if(d == null){ bar.style.width = "0"; num.textContent = "-"; return; }
-      bar.style.width = Math.min(100, Math.abs(d) / (tol*2) * 100) + "%";
-      bar.classList.toggle("bad", Math.abs(d) > tol);
+      const tl = jTol(st, li.dataset.id);
+      bar.style.width = Math.min(100, Math.abs(d) / (tl*2) * 100) + "%";
+      bar.classList.toggle("bad", jOn(st, li.dataset.id) && Math.abs(d) > tl);
       num.textContent = Math.round(Math.abs(d)) + "°";
     });
   }
@@ -816,8 +976,7 @@ function loop(){
   }
   const a = smoothAngles(computeAngles(lm, W, H));
   let flags = {};
-  if(mode === "recording") frames.push({t, a});
-  else if(mode === "uploading") frames.push({t, a});
+  if(mode === "recording" || mode === "uploading") frames.push({t, a, f: facing});
   else if(mode === "exercise") flags = exerciseStep(a, t, lm, W, H);
   draw(lm, flags, W, H);
 }
@@ -855,20 +1014,23 @@ if(DEBUG) window.__fyzio = {
   }, setRef: r => { REF = r; renderRefInfo(); setMode("ex"); },
   async buildRefFromUrl(url, fromSec = 0, toSec = 1e9, name = "Vzor", fps = 30){
     const fr = [];
-    await eachFrame(url, fromSec, toSec, fps, (a, t) => fr.push({t, a}));
+    await eachFrame(url, fromSec, toSec, fps, (a, t) => fr.push({t, a, f: facing}));
     return buildReference(fr, name);
   },
   async runExerciseOnUrl(url, fromSec = 0, toSec = 1e9, fps = 30){
     said.length = 0;
     counter = makeRepCounter(REF.start, REF.far); errSince = {}; repCount = 0; cur = null; $("log").innerHTML = "";
-    const flagged = {};
+    const flagged = {}, follow = [], modes = [];
     let started = false;
     await eachFrame(url, fromSec, toSec, fps, (a, t, lm, W, H) => {
-      if(!started){ startSession(); started = true; }
-      mode = "exercise"; const f = exerciseStep(a, t, lm, W, H); for(const k in f) flagged[k] = (flagged[k] || 0) + 1;
+      if(!started){ startSession(); started = true; showRefPip(true); setNo = 1; setReps = 0; mode = "exercise"; }
+      follow.push(Math.round(refVideo.currentTime*10)/10);
+      modes.push(mode);
+      if(mode !== "exercise") return;
+      const f = exerciseStep(a, t, lm, W, H); for(const k in f) flagged[k] = (flagged[k] || 0) + 1;
     });
     const rec = endSession(); mode = "idle";
-    return {reps: repCount, flaggedFrames: flagged, said: [...said], log: [...$("log").children].map(li => li.textContent).reverse(), summary: rec && summaryText(rec)};
+    return {reps: repCount, flaggedFrames: flagged, said: [...said], log: [...$("log").children].map(li => li.textContent).reverse(), summary: rec && summaryText(rec), follow: follow.filter((x,i) => i % 60 === 0), modes: [...new Set(modes)], setNo, setReps};
   }
 };
 
