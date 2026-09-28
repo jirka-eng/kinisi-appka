@@ -120,7 +120,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
         <label class="field">Název cviku
           <input type="text" id="exName" value="Dřep">
         </label>
-        <label class="check"><input type="checkbox" id="rearCam" checked> Použít zadní kameru</label>
+        <label class="check"><input type="checkbox" id="rearCam"> Zadní kamera (točím někoho jiného)</label>
         <div class="row">
           <button class="btn primary" id="btnRecStart" disabled>Nahrát vzor kamerou</button>
           <button class="btn" id="btnRecStop" disabled>Uložit vzor</button>
@@ -147,7 +147,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
           <input type="range" id="tol" min="8" max="30" value="15">
         </div>
         <label class="check"><input type="checkbox" id="voice" checked> Hlasové pokyny</label>
-        <label class="check"><input type="checkbox" id="rearCam2" checked> Zadní kamera (točím někoho jiného)</label>
+        <label class="check"><input type="checkbox" id="rearCam2"> Zadní kamera (točím někoho jiného)</label>
         <ul class="joints" id="joints"></ul>
         <ul class="log" id="log"></ul>
         <div class="tips" id="tips" hidden></div>
@@ -270,8 +270,11 @@ function setMode(m){
   } else if(landmarker) setStatus("", "Připraveno. Nahraj vzor kamerou nebo z videa.");
 }
 document.querySelectorAll(".modes button").forEach(b => b.onclick = () => { stopAll(); setMode(b.dataset.mode); });
-$("rearCam").onchange = () => { $("rearCam2").checked = $("rearCam").checked; };
-$("rearCam2").onchange = () => { $("rearCam").checked = $("rearCam2").checked; };
+// Výchozí je přední kamera, ať cvičící vidí displej. Volba se pamatuje v prohlížeči.
+function setRear(v){ $("rearCam").checked = $("rearCam2").checked = v; try{ localStorage.setItem("fyzio-rear", v ? "1" : "0"); }catch(e){} }
+try{ const v = localStorage.getItem("fyzio-rear"); if(v) $("rearCam").checked = $("rearCam2").checked = v === "1"; }catch(e){}
+$("rearCam").onchange = () => setRear($("rearCam").checked);
+$("rearCam2").onchange = () => setRear($("rearCam2").checked);
 
 /* ---------- geometry ---------- */
 function P(lm, i, w, h){ const p = lm[i]; return {x:p.x*w, y:p.y*h, v:p.visibility ?? 1}; }
