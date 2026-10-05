@@ -178,6 +178,9 @@ details.mine summary{cursor:pointer;font-weight:500}
 
       <section id="panelEx">
         <h2 id="exTitle">Cvičení</h2>
+        <label class="field">Cvik z knihovny
+          <select id="libSel" style="display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit"></select>
+        </label>
         <label class="field">Jméno pacienta (uvidí ho terapeut)
           <input type="text" id="patient" autocomplete="name" placeholder="např. Jana Nováková">
         </label>
@@ -248,8 +251,28 @@ let smooth = {}, lastVideoTime = -1, lastDetectT = 0;
 async function loadRef(){
   try{ DEFAULT_REF = await (await fetch(DEFAULT_REF_URL, {cache: "no-cache"})).json(); }catch(e){}
   try{ const s = localStorage.getItem("fyzio-ref-v2"); if(s) REF = JSON.parse(s); }catch(e){}
+  if(!REF){  // naposledy vybraný cvik z knihovny
+    let id = null; try{ id = localStorage.getItem("kinisi-lib-ref"); }catch(e){}
+    const e = id && (await library()).find(x => x.id === id);
+    if(e){ try{ REF = await (await fetch(e.file, {cache: "no-cache"})).json(); }catch(err){} }
+  }
   if(!REF) REF = DEFAULT_REF;
+  fillLibSel();
 }
+// Výběr cviku z knihovny (bez sestavy od terapeuta)
+async function fillLibSel(){
+  const sel = $("libSel"), lib = await library(); sel.innerHTML = "";
+  if(REF && !lib.some(x => x.id === REF.id)){ const o = document.createElement("option"); o.value = ""; o.textContent = REF.name + " (vlastní vzor)"; sel.append(o); }
+  for(const x of lib){ const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; o.selected = REF?.id === x.id; sel.append(o); }
+}
+$("libSel").onchange = async () => {
+  const e = (await library()).find(x => x.id === $("libSel").value); if(!e) return;
+  try{ REF = await (await fetch(e.file, {cache: "no-cache"})).json(); }catch(err){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
+  ACTIVE_ITEM = null; stopAll();
+  try{ localStorage.removeItem("fyzio-ref-v2"); localStorage.setItem("kinisi-lib-ref", e.id); }catch(err){}
+  renderRefInfo(); setMode("ex"); if(typeof renderProgram === "function") renderProgram(); showReps(); fillLibSel();
+  setStatus("", `${REF.name}: stiskni Začít cvičit.`);
+};
 function saveRef(){ try{ localStorage.setItem("fyzio-ref-v2", JSON.stringify(REF)); }catch(e){} }
 
 /* ---------- přesnost provedení (nastavuje terapeut, ukládá se k cviku) ---------- */
@@ -369,16 +392,18 @@ function setStatus(kind, text, hold = 0){
 }
 let lastSpoken = "", lastSpokenT = 0;
 const said = [];
+const clockNow = () => DEBUG && !video.srcObject ? video.currentTime*1000 : performance.now();  // v testu čas videa
 function speak(text, force = false){
-  const now = DEBUG && !video.srcObject ? video.currentTime*1000 : performance.now();
-  if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return;
+  const now = clockNow();
+  if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return false;
   if(sess && exRec) sess.msgs.push([Math.round((performance.now() - exRec.t0) / 100) / 10, text]);
   if(DEBUG) said.push({t: Math.round(video.currentTime*10)/10, text});
-  if(!$("voice").checked || !("speechSynthesis" in window)) return;
   lastSpoken = text; lastSpokenT = now;
+  if(!$("voice").checked || !("speechSynthesis" in window)) return true;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.05;
   speechSynthesis.speak(u);
+  return true;
 }
 function speakAndWait(text, maxMs){
   return new Promise(res => {
@@ -473,7 +498,7 @@ async function selectItem(it){
   const lib = await library(), entry = lib.find(x => x.id === it.ref);
   if(!entry){ setStatus("warn", `Cvik ${it.name} v knihovně chybí.`, 3000); return; }
   try{ REF = await (await fetch(entry.file, {cache: "no-cache"})).json(); }catch(e){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
-  ACTIVE_ITEM = it; stopAll(); renderRefInfo(); setMode("ex"); renderProgram(); showReps();
+  ACTIVE_ITEM = it; stopAll(); renderRefInfo(); setMode("ex"); renderProgram(); showReps(); fillLibSel();
   setStatus("", `${it.name}: ${it.sets} × ${it.reps}. Stiskni Začít cvičit.`);
 }
 async function loadProgram(){
@@ -638,7 +663,7 @@ function buildReference(fr, name, t0 = 0){
 function finishReference(t0 = 0, videoBlob = null){
   const fr = frames; frames = []; mode = "idle";
   try{
-    REF = buildReference(fr, $("exName").value.trim() || "Cvik", t0);
+    REF = buildReference(fr, $("exName").value.trim() || "Cvik", t0); ACTIVE_ITEM = null; setTimeout(fillLibSel, 0);
     if(videoBlob){ REF.video = "idb:ref-video"; idbPut("ref-video", videoBlob).then(loadRefVideo).catch(() => {}); }
     saveRef(); renderRefInfo();
     setStatus("good", "Vzor uložený. Přepni na krok 2 a zkus si to.", 2500);
@@ -648,7 +673,7 @@ function finishReference(t0 = 0, videoBlob = null){
   }
   $("btnRecStop").disabled = true; $("btnRecStart").disabled = false;
 }
-$("btnDefault").onclick = () => { REF = DEFAULT_REF; try{ localStorage.removeItem("fyzio-ref-v2"); }catch(e){} renderRefInfo(); setStatus("good", "Použit vzor z videa.", 1500); };
+$("btnDefault").onclick = () => { REF = DEFAULT_REF; ACTIVE_ITEM = null; try{ localStorage.removeItem("fyzio-ref-v2"); localStorage.setItem("kinisi-lib-ref", DEFAULT_REF.id); }catch(e){} renderRefInfo(); fillLibSel(); setStatus("good", "Použit vzor z videa.", 1500); };
 
 /* ---------- camera ---------- */
 async function startCamera(){
@@ -1053,7 +1078,7 @@ function matchRef(a){
   lastMatch = bi;
   return REF.frames[bi];
 }
-let lastMatch = 0, DEBUG_NOPLAN = false;
+let lastMatch = 0, DEBUG_NOPLAN = false, saidAt = {};
 
 function exerciseStep(a, t, lm, W, H){
   const st = S(), flags = {}, diffs = {}, hold = st.hold * 1000;
@@ -1075,6 +1100,12 @@ function exerciseStep(a, t, lm, W, H){
     } else delete errSince[id];
   });
   if(worst && cur && flags[cur]) worst = {id:cur};
+  // Víc chyb najednou: když aktuální zazněla před chvílí, dát slovo další (ať zazní i bedra, nejen hlava)
+  if(worst && saidAt[worst.id] && clockNow() - saidAt[worst.id] < 3500){
+    const other = Object.keys(flags).filter(id => id !== worst.id && !(saidAt[id] && clockNow() - saidAt[id] < 3500))
+      .sort((x, y) => (Math.abs(diffs[y]) - jTol(st, y)) - (Math.abs(diffs[x]) - jTol(st, x)))[0];
+    if(other) worst = {id: other};
+  }
   cur = worst ? worst.id : null;
   if(lm) recordFrame(a, flags, diffs, lm, W, H);
   followRef(lastMatch);
@@ -1099,7 +1130,7 @@ function exerciseStep(a, t, lm, W, H){
     }
   } else if(cur){
     const msg = diffs[cur] > 0 ? JMAP[cur].hi : JMAP[cur].lo;
-    setStatus("bad", msg); speak(msg);
+    setStatus("bad", msg); if(speak(msg)) saidAt[cur] = clockNow();
   } else {
     setStatus("good", "Správně");
   }

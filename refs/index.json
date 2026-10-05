@@ -4,5 +4,17 @@
   "name": "Dřep",
   "file": "refs/drep.json",
   "desc": "Dřep z boku, vzor terapeuta s komentářem"
+ },
+ {
+  "id": "drep2",
+  "name": "Dřep 2",
+  "file": "refs/drep2.json",
+  "desc": "Dřep z boku, studiové video (4 opakování)"
+ },
+ {
+  "id": "drep2-45",
+  "name": "Dřep 2 (šikmo zepředu)",
+  "file": "refs/drep2-45.json",
+  "desc": "Dřep šikmo zepředu 45°, bez kontrol zad a chodidel"
  }
 ]
