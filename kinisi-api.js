@@ -30,7 +30,7 @@
     if(!code) return null;
     u.searchParams.delete("pozvanka"); history.replaceState(null, "", u.pathname + u.search + u.hash);
     try{ await ensureAnon(); }
-    catch(e){ throw new Error("Spárování teď nejde (server nepovolil přihlášení telefonu). Dej vědět terapeutovi."); }
+    catch(e){ throw new Error("Spárování teď nejde (server nepovolil přihlášení telefonu). Dejte vědět terapeutovi."); }
     let {data, error} = await sb.rpc("claim_invite", {p_code: code});
     if(error && !/invalid invite/.test(error.message)){
       // Staré přihlášení telefonu (např. smazaný pacient): odhlásit, přihlásit znovu a zkusit ještě jednou.
@@ -38,7 +38,7 @@
       try{ await ensureAnon(); }catch(e){}
       ({data, error} = await sb.rpc("claim_invite", {p_code: code}));
     }
-    if(error) throw new Error(/invalid invite/.test(error.message) ? "Pozvánka neplatí nebo už byla použita. Požádej terapeuta o novou." : "Spárování se nepovedlo: " + error.message);
+    if(error) throw new Error(/invalid invite/.test(error.message) ? "Pozvánka neplatí nebo už byla použita. Požádejte terapeuta o novou." : "Spárování se nepovedlo: " + error.message);
     const row = Array.isArray(data) ? data[0] : data;
     const pairing = {patientId: row.patient_id, name: row.patient_name, at: new Date().toISOString()};
     store.set(PAIR_KEY, pairing);
