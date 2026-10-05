@@ -7,14 +7,14 @@
  },
  {
   "id": "drep2",
-  "name": "Dřep 2",
+  "name": "Dynamický podřep",
   "file": "refs/drep2.json",
-  "desc": "Dřep z boku, studiové video (4 opakování)"
+  "desc": "Podřep z boku (studiové video, 4 opakování), podle popisu cviku"
  },
  {
   "id": "drep2-45",
-  "name": "Dřep 2 (šikmo zepředu)",
+  "name": "Dynamický podřep (šikmo zepředu)",
   "file": "refs/drep2-45.json",
-  "desc": "Dřep šikmo zepředu 45°, bez kontrol zad a chodidel"
+  "desc": "Šikmo zepředu 45°: kolena do stran, hlava, ramena"
  }
 ]

@@ -48,7 +48,7 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .cam{position:relative;width:100%;aspect-ratio:16/9;max-height:72vh;background:#1D1D26;border-radius:10px;overflow:hidden}
 .cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .cam.mirror video,.cam.mirror canvas{transform:scaleX(-1)}
-.status{position:absolute;left:12px;right:12px;bottom:12px;padding:14px 18px;border-radius:8px;font-weight:700;font-size:clamp(1.05rem,3.2vw,1.6rem);line-height:1.2;color:#fff;background:rgba(29,29,38,.8);transition:background-color .2s}
+.status{position:absolute;right:8px;top:8px;max-width:min(62%,420px);padding:5px 11px;border-radius:999px;font-weight:700;font-size:clamp(.8rem,2.2vw,1rem);line-height:1.25;color:#fff;background:rgba(29,29,38,.72);transition:background-color .2s;z-index:3}
 .status.good{background:var(--good)} .status.bad{background:var(--bad)} .status.warn{background:var(--warn)}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .status.good, :root:not([data-theme="light"]) .status.bad, :root:not([data-theme="light"]) .status.warn{color:#0F1820} }
 .countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(5rem,20vw,11rem);font-weight:300;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.5);pointer-events:none}
@@ -237,7 +237,11 @@ const JOINTS = [
   {id:"toe", name:"Špičky", kind:"toe", p:[29,31], dot:[31], hi:"Neodlepuj špičky", lo:null},
   // Tvar zad z obrysu postavy (MediaPipe nemá body na páteři): ohyb obrysu zad v bedrech a v hrudní části.
   {id:"lumbar", name:"Bedra", kind:"back", p:[11,23], hi:"Nehrb se v bedrech", lo:"Neprohýbej se v bedrech"},
-  {id:"thor", name:"Hrudní záda", kind:"back", p:[11,23], hi:"Narovnej hrudní záda", lo:null}
+  {id:"thor", name:"Hrudní záda", kind:"back", p:[11,23], hi:"Narovnej hrudní záda", lo:null},
+  // Ramena k uším: vzdálenost ucho-rameno v % délky trupu (menší = ramena vytažená nahoru)
+  {id:"shrug", name:"Ramena od uší", kind:"shrug", p:[7,11,23], dot:[11], unit:"%", hi:null, lo:"Ramena dolů od uší"},
+  // Kolena dovnitř (valgus): jen zepředu / šikmo zepředu; vychýlení kolena z osy kyčel-kotník v % délky nohy
+  {id:"valgus", name:"Kolena do stran", kind:"valgus", p:[23,25,27], dot:[25], unit:"%", hi:"Kolena ve směru špiček", lo:null}
 ];
 const JMAP = Object.fromEntries(JOINTS.map(j => [j.id, j]));
 const LEFT = [11,13,15,23,25,27], RIGHT = [12,14,16,24,26,28];
@@ -324,7 +328,7 @@ function renderSettings(){
     const j = JMAP[id];
     if(!j.hi && !j.lo) continue;
     row(j.name, jOn(st, id), v => upd(c => { c.joints[id] = {...c.joints[id], on: v}; }),
-      jTol(st, id), 5, 40, 1, v => v + "°", v => upd(c => { c.joints[id] = {...c.joints[id], tol: v}; }));
+      jTol(st, id), 5, 40, 1, v => v + (j.unit || "°"), v => upd(c => { c.joints[id] = {...c.joints[id], tol: v}; }));
     if(j.line){
       const sel = document.createElement("select");
       sel.style.cssText = "width:100%;margin:-4px 0 10px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:.85rem";
@@ -599,6 +603,21 @@ function computeAngles(lm, w, h, mask = null){
     else if(j.kind === "heel") out[j.id] = deg(Math.atan2(b.y - a.y, Math.abs(b.x - a.x)));  // + = pata nad špičkou
     else if(j.kind === "toe") out[j.id] = deg(Math.atan2(a.y - b.y, Math.abs(b.x - a.x)));   // + = špička nad patou
     else if(j.kind === "back") out[j.id] = null;  // doplní backProfile níže
+    else if(j.kind === "shrug"){ const t = Math.hypot(b.x - c.x, b.y - c.y); out[j.id] = t > 1 ? Math.hypot(a.x - b.x, a.y - b.y) / t * 100 : null; }
+    else if(j.kind === "valgus"){
+      // obě nohy: kladně = koleno uhýbá k ose těla (dovnitř); bere se horší z nich
+      let worst = null;
+      for(const [hi, ki, ai, oh] of [[23,25,27,24],[24,26,28,23]]){
+        const H = P(lm, hi, w, h), K = P(lm, ki, w, h), A = P(lm, ai, w, h), O = P(lm, oh, w, h);
+        if(Math.min(H.v, K.v, A.v, O.v) < VIS) continue;
+        const lx = A.x - H.x, ly = A.y - H.y, L = Math.hypot(lx, ly); if(L < 10) continue;
+        let dev = ((K.x - H.x) * ly - (K.y - H.y) * lx) / L;          // kolmá vzdálenost kolena od osy
+        const side = ((O.x - H.x) * ly - (O.y - H.y) * lx) / L;       // na kterou stranu je druhá kyčel (= dovnitř)
+        dev = Math.sign(side || 1) * dev / L * 100;
+        if(worst == null || dev > worst) worst = dev;
+      }
+      out[j.id] = worst;
+    }
     else out[j.id] = angle(a, b, c);
   }
   const bp = backProfile(lm, w, h, mask);
@@ -779,7 +798,7 @@ function recordFrame(a, flags, diffs, lm, W, H){
   const acc = sess.acc; acc.frames++;
   const ids = Object.keys(flags);
   if(ids.length) acc.bad++;
-  for(const id of ids){ const msg = diffs[id] > 0 ? JMAP[id].hi : JMAP[id].lo; acc.err[msg] = (acc.err[msg] || 0) + 1; }
+  for(const id of ids){ const msg = msgFor(id, diffs); acc.err[msg] = (acc.err[msg] || 0) + 1; }
   const dev = Math.abs(a[REF.primary] - REF.start);
   if(dev > acc.dev){ acc.dev = dev; acc.pose = capturePose(lm, W, H); }
 }
@@ -851,11 +870,12 @@ function drawExRec(){
   const {c, x} = exRec;
   x.drawImage(video, 0, 0, c.width, c.height); x.drawImage(canvas, 0, 0, c.width, c.height);
   const txt = statusEl.textContent; if(!txt) return;
-  const fs = Math.round(c.height / 26);
+  const fs = Math.round(Math.min(c.width, c.height) / 30), t = txt.slice(0, 48);
   x.font = `700 ${fs}px Roboto, sans-serif`;
-  x.fillStyle = statusEl.classList.contains("bad") ? "rgba(216,65,47,.9)" : statusEl.classList.contains("good") ? "rgba(30,140,92,.9)" : "rgba(29,29,38,.8)";
-  x.fillRect(0, c.height - fs*2, c.width, fs*2);
-  x.fillStyle = "#fff"; x.fillText(txt.slice(0, 60), fs*0.6, c.height - fs*0.65);
+  const w = Math.min(c.width * 0.62, x.measureText(t).width + fs*1.4), hh = fs*1.7, x0 = c.width - w - fs*0.5, y0 = fs*0.5;
+  x.fillStyle = statusEl.classList.contains("bad") ? "rgba(216,65,47,.9)" : statusEl.classList.contains("good") ? "rgba(30,140,92,.9)" : "rgba(29,29,38,.75)";
+  x.beginPath(); x.roundRect ? x.roundRect(x0, y0, w, hh, hh/2) : x.rect(x0, y0, w, hh); x.fill();
+  x.fillStyle = "#fff"; x.fillText(t, x0 + fs*0.7, y0 + hh*0.68, w - fs*1.4);
 }
 function stopExRec(){
   const r = exRec; exRec = null;
@@ -1079,6 +1099,12 @@ function matchRef(a){
   return REF.frames[bi];
 }
 let lastMatch = 0, DEBUG_NOPLAN = false, saidAt = {};
+// Text pokynu: vlastní texty cviku (REF.texts) mají přednost; ohyb v bedrech bez ohybu v kyčlích = pohyb ze zad
+function msgFor(id, diffs){
+  const dir = diffs[id] > 0 ? "hi" : "lo";
+  if(id === "lumbar" && dir === "hi" && diffs.hip != null && diffs.hip > jTol(S(), "hip") * 0.5) return "Ohýbej se v kyčlích, ne v zádech";
+  return REF.texts?.[id]?.[dir] || JMAP[id][dir];
+}
 
 function exerciseStep(a, t, lm, W, H){
   const st = S(), flags = {}, diffs = {}, hold = st.hold * 1000;
@@ -1110,7 +1136,8 @@ function exerciseStep(a, t, lm, W, H){
   if(lm) recordFrame(a, flags, diffs, lm, W, H);
   followRef(lastMatch);
 
-  const r = counter.push(pv, t);
+  let r = counter.push(pv, t);
+  if(r && r.dur < 0.5) r = null;  // záškub detekce (např. první snímky), ne skutečné opakování
   if(r){
     if(r.full){
       repCount++; setReps++; showReps();
@@ -1129,10 +1156,16 @@ function exerciseStep(a, t, lm, W, H){
       logLine("Nedokončené opakování");
     }
   } else if(cur){
-    const msg = diffs[cur] > 0 ? JMAP[cur].hi : JMAP[cur].lo;
+    const msg = msgFor(cur, diffs);
     setStatus("bad", msg); if(speak(msg)) saidAt[cur] = clockNow();
   } else {
     setStatus("good", "Správně");
+    // průběžná připomínka toho, co kamera nevidí (např. dech), jen když je vše v pořádku
+    for(const rm of REF.reminders || []){
+      const k = "rem:" + rm.text;
+      if(!saidAt[k]) saidAt[k] = clockNow();
+      else if(clockNow() - saidAt[k] > rm.every * 1000 && speak(rm.text)) saidAt[k] = clockNow();
+    }
   }
 
   if(t - lastBars > 100){
@@ -1143,7 +1176,7 @@ function exerciseStep(a, t, lm, W, H){
       const tl = jTol(st, li.dataset.id);
       bar.style.width = Math.min(100, Math.abs(d) / (tl*2) * 100) + "%";
       bar.classList.toggle("bad", jOn(st, li.dataset.id) && Math.abs(d) > tl);
-      num.textContent = Math.round(Math.abs(d)) + "°";
+      num.textContent = Math.round(Math.abs(d)) + (JMAP[li.dataset.id].unit || "°");
     });
   }
   return flags;
