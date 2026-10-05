@@ -238,6 +238,9 @@ const JOINTS = [
   // Tvar zad z obrysu postavy (MediaPipe nemá body na páteři): ohyb obrysu zad v bedrech a v hrudní části.
   {id:"lumbar", name:"Bedra", kind:"back", p:[11,23], hi:"Nehrb se v bedrech", lo:"Neprohýbej se v bedrech"},
   {id:"thor", name:"Hrudní záda", kind:"back", p:[11,23], hi:"Narovnej hrudní záda", lo:null},
+  // Krk ve 3D (z boku i šikmo zepředu): sklon spojnice ramena->uši vůči trupu, porovnává se se společným
+  // průběhem ze všech správných záběrů podle hloubky dřepu (REF.neckProfile). + = hlava vpředu, - = záklon.
+  {id:"neck3d", name:"Krk (3D)", kind:"neck3d", p:[7,11,23], dot:[7], hi:"Hlavu nepředkláněj, drž ji v prodloužení páteře", lo:"Nezakláněj hlavu"},
   // Ramena k uším: vzdálenost ucho-rameno v % délky trupu (menší = ramena vytažená nahoru)
   {id:"shrug", name:"Ramena od uší", kind:"shrug", p:[7,11,23], dot:[11], unit:"%", hi:null, lo:"Ramena dolů od uší"},
   // Kolena dovnitř (valgus): jen zepředu / šikmo zepředu; vychýlení kolena z osy kyčel-kotník v % délky nohy
@@ -575,7 +578,25 @@ function readMask(res){
   try{ return {width: m.width, height: m.height, data: m.getAsFloat32Array()}; }
   finally{ res.segmentationMasks.forEach(x => x.close()); }
 }
-function computeAngles(lm, w, h, mask = null){
+// 3D úhly ze světových souřadnic MediaPipe (metry, střed v pánvi): nezávisí tolik na úhlu kamery
+function angles3d(wl){
+  const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]], dot = (a, b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const mid = (i, j) => [(wl[i].x+wl[j].x)/2, (wl[i].y+wl[j].y)/2, (wl[i].z+wl[j].z)/2], V = i => [wl[i].x, wl[i].y, wl[i].z];
+  const norm = a => { const l = Math.hypot(...a) || 1; return a.map(x => x/l); };
+  const ms = mid(11,12), mh = mid(23,24), me = mid(7,8);
+  const up = norm(sub(ms, mh));
+  let lat = sub(V(12), V(11)); const k = dot(lat, up); lat = norm(lat.map((x, i) => x - k*up[i]));
+  let fwd = [up[1]*lat[2]-up[2]*lat[1], up[2]*lat[0]-up[0]*lat[2], up[0]*lat[1]-up[1]*lat[0]];
+  // dopředu = směr chodidel (pata -> špička); nos jen záložně, při záklonu hlavy míří nahoru a směr by se překlopil
+  const foot = [sub(V(31), V(29)), sub(V(32), V(30))].reduce((x, y) => x.map((v, i) => v + y[i]));
+  const ref = Math.hypot(...foot) > 0.05 ? foot : sub(V(0), ms);
+  if(dot(ref, fwd) < 0) fwd = fwd.map(x => -x);
+  const neck = sub(me, ms);
+  const a3 = (a, b, c) => { const v1 = sub(V(a), V(b)), v2 = sub(V(c), V(b)); return Math.acos(Math.max(-1, Math.min(1, dot(v1, v2) / (Math.hypot(...v1) * Math.hypot(...v2) || 1)))) * 180 / Math.PI; };
+  return {neck3d: Math.atan2(dot(neck, fwd), dot(neck, up)) * 180 / Math.PI, hip3: (a3(11,23,25) + a3(12,24,26)) / 2};
+}
+const profileAt = (p, x) => { const H = p.hip, N = p.neck; if(x <= H[0]) return N[0]; for(let i = 1; i < H.length; i++) if(x <= H[i]) return N[i-1] + (N[i]-N[i-1]) * (x-H[i-1]) / (H[i]-H[i-1]); return N.at(-1); };
+function computeAngles(lm, w, h, mask = null, wl = null){
   const vis = idx => idx.reduce((s,i) => s + (lm[i].visibility ?? 1), 0) / idx.length;
   side = vis(RIGHT) > vis(LEFT) ? "R" : "L";
   // Kam je člověk otočený (+1 doprava, -1 doleva): nos před uchem, jinak špička před patou.
@@ -602,7 +623,7 @@ function computeAngles(lm, w, h, mask = null){
     }
     else if(j.kind === "heel") out[j.id] = deg(Math.atan2(b.y - a.y, Math.abs(b.x - a.x)));  // + = pata nad špičkou
     else if(j.kind === "toe") out[j.id] = deg(Math.atan2(a.y - b.y, Math.abs(b.x - a.x)));   // + = špička nad patou
-    else if(j.kind === "back") out[j.id] = null;  // doplní backProfile níže
+    else if(j.kind === "back" || j.kind === "neck3d") out[j.id] = null;  // doplní se níže
     else if(j.kind === "shrug"){ const t = Math.hypot(b.x - c.x, b.y - c.y); out[j.id] = t > 1 ? Math.hypot(a.x - b.x, a.y - b.y) / t * 100 : null; }
     else if(j.kind === "valgus"){
       // obě nohy: kladně = koleno uhýbá k ose těla (dovnitř); bere se horší z nich
@@ -620,6 +641,7 @@ function computeAngles(lm, w, h, mask = null){
     }
     else out[j.id] = angle(a, b, c);
   }
+  if(wl && Math.min(lm[0].visibility ?? 1, lm[11].visibility ?? 1, lm[12].visibility ?? 1) >= 0.3){ const a3 = angles3d(wl); out.neck3d = a3.neck3d; out.hip3 = a3.hip3; }
   const bp = backProfile(lm, w, h, mask);
   if(bp){ out.lumbar = bp.lumbar; out.thor = bp.thor; }
   return out;
@@ -1090,7 +1112,7 @@ function matchRef(a){
   let best = Infinity, bi = 0;
   for(let k = 0; k < REF.frames.length; k++){
     const f = REF.frames[k], d = [];
-    for(let m = 0; m < f.length; m++) if(live[m] != null) d.push(Math.abs(live[m] - f[m]));
+    for(let m = 0; m < f.length; m++) if(live[m] != null && f[m] != null) d.push(Math.abs(live[m] - f[m]));
     d.sort((x,y) => x-y);
     let s = 0; for(let q = 0; q < d.length - drop; q++) s += d[q];
     if(s < best){ best = s; bi = k; }
@@ -1114,7 +1136,10 @@ function exerciseStep(a, t, lm, W, H){
   let worst = null;
   REF.present.forEach((id, m) => {
     const v = a[id]; if(v == null){ diffs[id] = null; delete errSince[id]; return; }
-    const d = v - (st.joints[id]?.mode === "line" ? 0 : exp[m]); diffs[id] = d;
+    let target = st.joints[id]?.mode === "line" ? 0 : exp[m];
+    if(JMAP[id].kind === "neck3d"){ if(!REF.neckProfile || a.hip3 == null){ diffs[id] = null; delete errSince[id]; return; } target = profileAt(REF.neckProfile, a.hip3); }
+    if(target == null){ diffs[id] = null; delete errSince[id]; return; }
+    const d = v - target; diffs[id] = d;
     const tol = jTol(st, id);
     if(jOn(st, id) && Math.abs(d) > tol && (d > 0 ? JMAP[id].hi : JMAP[id].lo)){
       errSince[id] ??= t;
@@ -1253,7 +1278,7 @@ function loop(){
     if(mode === "exercise" || mode === "recording") setStatus("warn", "Nevidím tě. Postav se celý do záběru.");
     return;
   }
-  const a = smoothAngles(computeAngles(lm, W, H, mask));
+  const a = smoothAngles(computeAngles(lm, W, H, mask, res.worldLandmarks?.[0]));
   let flags = {};
   if(mode === "recording" || mode === "uploading") frames.push({t, a, f: facing});
   else if(mode === "exercise") flags = exerciseStep(a, t, lm, W, H);
@@ -1272,7 +1297,7 @@ async function eachFrame(url, fromSec, toSec, fps, fn){
     const ts = lastDetectT = Math.max(performance.now(), lastDetectT + 1);
     const res = landmarker.detectForVideo(video, ts), mask = readMask(res), lm = res.landmarks?.[0];
     if(!lm){ smooth = {}; continue; }
-    fn(smoothAngles(computeAngles(lm, video.videoWidth, video.videoHeight, mask)), s * 1000, lm, video.videoWidth, video.videoHeight);
+    fn(smoothAngles(computeAngles(lm, video.videoWidth, video.videoHeight, mask, res.worldLandmarks?.[0])), s * 1000, lm, video.videoWidth, video.videoHeight);
   }
   video.onseeked = null;
 }

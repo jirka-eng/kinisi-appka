@@ -1,20 +1,20 @@
 [
  {
-  "id": "drep",
-  "name": "Dřep",
-  "file": "refs/drep.json",
-  "desc": "Dřep z boku, vzor terapeuta s komentářem"
+  "id": "drep2-45",
+  "name": "Dynamický podřep (šikmo zepředu, doporučeno)",
+  "file": "refs/drep2-45.json",
+  "desc": "Telefon šikmo zepředu 45°: kolena do stran, krk ve 3D, ramena; pacient nemusí otáčet hlavu"
  },
  {
   "id": "drep2",
-  "name": "Dynamický podřep",
+  "name": "Dynamický podřep (z boku)",
   "file": "refs/drep2.json",
   "desc": "Podřep z boku (studiové video, 4 opakování), podle popisu cviku"
  },
  {
-  "id": "drep2-45",
-  "name": "Dynamický podřep (šikmo zepředu)",
-  "file": "refs/drep2-45.json",
-  "desc": "Šikmo zepředu 45°: kolena do stran, hlava, ramena"
+  "id": "drep",
+  "name": "Dřep",
+  "file": "refs/drep.json",
+  "desc": "Dřep z boku, vzor terapeuta s komentářem"
  }
 ]

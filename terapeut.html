@@ -417,7 +417,7 @@ function inviteBox(patient){
 let LIB = null, progDirty = false;
 async function lib(){ if(!LIB){ try{ LIB = await (await fetch("refs/index.json", {cache:"no-cache"})).json(); }catch(e){ LIB = []; } } return LIB; }
 const PREC = [[10,"Přísně (10°)"],[15,"Běžně (15°)"],[20,"Volně (20°)"],[25,"Velmi volně (25°)"]];
-const JNAME = {knee:"Koleno", hip:"Kyčel", sh:"Rameno", el:"Loket", trunk:"Trup (sklon)", head:"Krk a hlava", shin:"Kolena vpřed", heel:"Paty", toe:"Špičky", lumbar:"Bedra", thor:"Hrudní záda", shrug:"Ramena od uší", valgus:"Kolena do stran"};
+const JNAME = {knee:"Koleno", hip:"Kyčel", sh:"Rameno", el:"Loket", trunk:"Trup (sklon)", head:"Krk a hlava", shin:"Kolena vpřed", heel:"Paty", toe:"Špičky", lumbar:"Bedra", thor:"Hrudní záda", shrug:"Ramena od uší", valgus:"Kolena do stran", neck3d:"Krk (3D)"};
 const REFS = {};
 async function refChecks(refId){
   if(!REFS[refId]){ const e = (await lib()).find(x => x.id === refId); REFS[refId] = e ? fetch(e.file, {cache:"no-cache"}).then(r => r.json()).catch(() => null) : Promise.resolve(null); }
