@@ -1006,7 +1006,7 @@ function renderSummary(rec){
   }
   row("Posledních 7 dní", `${weekCount(rec.ex)}× cvičeno`);
   box.append(d);
-  if(dl?.kind === "up") speak(`Rozsah pohybu je o ${dl.d} stupňů větší než minule.`, true);
+  if(dl?.kind === "up") speak("Rozsah pohybu je větší než minule.", true);
 
   const errs = Object.entries(rec.errors).sort((a,b) => b[1]-a[1]);
   if(errs.length){
@@ -1059,7 +1059,7 @@ async function finishSet(){
     return;
   }
   mode = "rest";
-  speak(`Série je hotová. Pauza ${pl.rest} sekund, dýchejte plynule.`, true);
+  speak("Série je hotová. Během pauzy dýchejte plynule.", true);
   setStatus("", `Série ${setNo} je hotová. Pauza…`, 1);
   await countdown(pl.rest);
   if(mode !== "rest") return;  // mezitím ukončeno
