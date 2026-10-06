@@ -166,6 +166,12 @@ for col in "BCD":
 pr.column_dimensions["A"].width = 28
 for col in "BCD": pr.column_dimensions[col].width = 12
 
+# Mapa věta -> soubor pro aplikaci (index.html si podle ní hledá nahrávky v hlas/audio/)
+import json
+clips = {}
+for (_, f, t, _, _) in rows: clips.setdefault(t, f)   # stejná věta u více cviků -> první nahrávka
+json.dump(clips, open("hlas/clips.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
 from openpyxl.workbook.properties import CalcProperties
 wb.calculation = CalcProperties(fullCalcOnLoad=True)  # Excel/Tabulky spočítají přehled hned při otevření
 out = "hlas/Fyzioscanner_scenar_nahravani.xlsx"

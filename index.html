@@ -400,22 +400,65 @@ function setStatus(kind, text, hold = 0){
 let lastSpoken = "", lastSpokenT = 0;
 const said = [];
 const clockNow = () => DEBUG && !video.srcObject ? video.currentTime*1000 : performance.now();  // v testu čas videa
+/* ---------- hlas Kinisi: namluvené věty (hlas/audio), jinak hlas telefonu ---------- */
+// hlas/clips.json: věta -> soubor; hlas/audio/manifest.json: které věty jsou už namluvené
+let CLIPS = {}, VOICED = new Set();
+const voiceEl = new Audio(); voiceEl.preload = "auto";
+let voiceQueue = [], voiceDone = null;
+const clipUrl = key => "hlas/audio/" + key.replace("/", "_") + ".mp3";
+(async () => {
+  try{
+    CLIPS = await (await fetch("hlas/clips.json", {cache: "no-cache"})).json();
+    VOICED = new Set(await (await fetch("hlas/audio/manifest.json", {cache: "no-cache"})).json());
+    for(const k of VOICED) fetch(clipUrl(k)).catch(() => {});  // předem do mezipaměti, ať korekce zazní hned
+  }catch(e){ VOICED = new Set(); }
+})();
+// Rozloží text na namluvené kousky ("3. Dokončete pohyb…" = číslo + věta; úvod = věty za sebou). Null = něco chybí.
+function clipsFor(text){
+  const parts = [];
+  let rest = text.trim();
+  const num = rest.match(/^(\d+)\.?\s*(.*)$/);
+  if(num){ parts.push(String(+num[1])); rest = num[2]; }
+  if(rest){
+    if(CLIPS[rest]) parts.push(rest);
+    else { const sents = rest.match(/[^.!?]+[.!?]/g) || [rest]; parts.push(...sents.map(x => x.trim())); }
+  }
+  const keys = parts.map(p => CLIPS[p]);
+  return keys.length && keys.every(k => k && VOICED.has(k)) ? keys : null;
+}
+function stopVoice(){ voiceQueue = []; voiceEl.pause(); const d = voiceDone; voiceDone = null; d?.(); try{ speechSynthesis.cancel(); }catch(e){} }
+function playClips(keys, onDone){
+  stopVoice(); voiceQueue = keys.slice(); voiceDone = onDone || null;
+  const next = () => {
+    const k = voiceQueue.shift();
+    if(!k){ const d = voiceDone; voiceDone = null; d?.(); return; }
+    voiceEl.src = clipUrl(k); voiceEl.play().catch(() => next());
+  };
+  voiceEl.onended = next; voiceEl.onerror = next;
+  next();
+}
 function speak(text, force = false){
   const now = clockNow();
   if(!force && (now - lastSpokenT < 1800 || (text === lastSpoken && now - lastSpokenT < 4000))) return false;
   if(sess && exRec) sess.msgs.push([Math.round((performance.now() - exRec.t0) / 100) / 10, text]);
-  if(DEBUG) said.push({t: Math.round(video.currentTime*10)/10, text});
+  const keys = clipsFor(text);
+  if(DEBUG) said.push({t: Math.round(video.currentTime*10)/10, text, ...(keys ? {clips: keys} : {})});
   lastSpoken = text; lastSpokenT = now;
-  if(!$("voice").checked || !("speechSynthesis" in window)) return true;
-  speechSynthesis.cancel();
+  if(!$("voice").checked) return true;
+  if(keys){ playClips(keys); return true; }
+  if(!("speechSynthesis" in window)) return true;
+  stopVoice();
   const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.05;
   speechSynthesis.speak(u);
   return true;
 }
 function speakAndWait(text, maxMs){
   return new Promise(res => {
-    if(!$("voice").checked || !("speechSynthesis" in window)){ setTimeout(res, Math.min(maxMs, 3000)); return; }
-    speechSynthesis.cancel();
+    if(!$("voice").checked){ setTimeout(res, Math.min(maxMs, 3000)); return; }
+    const keys = clipsFor(text);
+    if(keys){ const to = setTimeout(res, maxMs); playClips(keys, () => { clearTimeout(to); res(); }); lastSpoken = text; lastSpokenT = performance.now(); return; }
+    if(!("speechSynthesis" in window)){ setTimeout(res, Math.min(maxMs, 3000)); return; }
+    stopVoice();
     const u = new SpeechSynthesisUtterance(text); u.lang = "cs-CZ"; u.rate = 1.0;
     const done = () => { clearTimeout(to); res(); }, to = setTimeout(res, maxMs);  // iOS občas nepošle onend
     u.onend = done; u.onerror = done;
@@ -733,7 +776,7 @@ async function startCamera(){
 }
 function stopStream(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } video.srcObject = null; }
 function unloadFile(){ video.pause(); video.onended = null; video.ontimeupdate = null; if(video.getAttribute("src")){ video.removeAttribute("src"); video.load(); } video.muted = true; $("btnDemo").textContent = "Přehrát ukázku od terapeuta"; }
-function stopAll(){ if((mode === "exercise" || mode === "rest" || mode === "done") && sess) endSession(); mode = "idle"; showRefPip(false); stopStream(); unloadFile(); $("countdown").hidden = true; try{ speechSynthesis.cancel(); }catch(e){}
+function stopAll(){ if((mode === "exercise" || mode === "rest" || mode === "done") && sess) endSession(); mode = "idle"; showRefPip(false); stopStream(); unloadFile(); $("countdown").hidden = true; stopVoice();
   $("btnRecStop").disabled = true; $("btnRecStart").disabled = !landmarker; $("btnExStop").disabled = true; $("btnExStart").disabled = !REF || !landmarker; }
 function countdown(n){
   return new Promise(res => {
