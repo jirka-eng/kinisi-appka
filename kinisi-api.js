@@ -128,7 +128,67 @@
   }
   const inviteLink = code => new URL("./?pozvanka=" + encodeURIComponent(code), location.href).href;
 
+  /* ---------- knihovna cviků ---------- */
+  // Cviky z repa (refs/index.json) + zveřejněné z aplikace (tabulka exercises, supabase/migrations/006_library.sql).
+  let libPromise = null;
+  function library(refresh = false){
+    if(!libPromise || refresh) libPromise = (async () => {
+      const [files, rows] = await Promise.all([
+        fetch("refs/index.json", {cache: "no-cache"}).then(r => r.json()).catch(() => []),
+        sb.from("exercises").select("id,name,description").order("created_at", {ascending: false})
+          .then(({data, error}) => error ? [] : data, () => [])
+      ]);
+      const seen = new Set(files.map(x => x.id));
+      return [...files, ...rows.filter(x => !seen.has(x.id)).map(x => ({id: x.id, name: x.name, desc: x.description || "", db: true}))];
+    })();
+    return libPromise;
+  }
+  async function loadExercise(entry){
+    if(!entry.db){ const r = await fetch(entry.file, {cache: "no-cache"}); if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); }
+    const {data, error} = await sb.from("exercises").select("ref,video_path").eq("id", entry.id).single();
+    if(error) throw error;
+    const {video, ...ref} = data.ref;
+    if(data.video_path) ref.video = sb.storage.from("library").getPublicUrl(data.video_path).data.publicUrl;
+    return {...ref, id: entry.id, db: true};
+  }
+  // Zveřejňovat smí jen editor knihovny. Na stránce pacienta se použije přihlášení z Přehledu pro terapeuta.
+  const sbT = /terapeut/.test(location.pathname) ? sb : window.supabase.createClient(URL_, KEY,
+    {auth: {persistSession: true, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "kinisi-auth-therapist"}});
+  // null = nepřihlášen, false = přihlášen, ale není editor, jinak e-mail editora
+  async function libraryEditor(){
+    const {data: {session}} = await sbT.auth.getSession();
+    if(!session || isAnon(session)) return null;
+    const {data, error} = await sbT.rpc("is_library_editor");
+    return !error && data ? session.user.email : false;
+  }
+  const slugify = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "cvik";
+  // Nový cvik (id = null) nebo úprava zveřejněného; video jen když je nové.
+  async function publishExercise(ref, {id = null, description = "", videoBlob = null} = {}){
+    id ||= slugify(ref.name) + "-" + Date.now().toString(36);
+    const row = {id, name: ref.name, description: description || null, updated_at: new Date().toISOString()};
+    if(videoBlob){
+      const ext = /mp4/.test(videoBlob.type) ? "mp4" : /quicktime/.test(videoBlob.type) ? "mov" : "webm";
+      row.video_path = `${id}/${Date.now().toString(36)}.${ext}`;
+      const {error} = await sbT.storage.from("library").upload(row.video_path, videoBlob, {contentType: videoBlob.type || "video/" + ext});
+      if(error) throw error;
+    }
+    const {video, db, ...clean} = ref;
+    row.ref = {...clean, id};
+    const {error} = await sbT.from("exercises").upsert(row);
+    if(error) throw error;
+    libPromise = null;
+    return id;
+  }
+  async function unpublishExercise(id){
+    const {data: files} = await sbT.storage.from("library").list(id);
+    if(files?.length) await sbT.storage.from("library").remove(files.map(f => `${id}/${f.name}`));
+    const {error} = await sbT.from("exercises").delete().eq("id", id);
+    if(error) throw error;
+    libPromise = null;
+  }
+
   window.KinisiAPI = {sb, pairFromUrl, getPairing, uploadSession, flushQueue, getProgram, saveProgram, uploadVideo, videoUrl,
+    library, loadExercise, libraryEditor, publishExercise, unpublishExercise,
     therapistSession, signIn, signOut, loadTherapistData, addPatient, createInvite, deletePatient, onSessionsChange, inviteLink,
     onAuth: cb => sb.auth.onAuthStateChange((ev, s) => cb(ev, s))};
 })();

@@ -73,6 +73,11 @@ header p{margin:0 0 18px;color:var(--muted);max-width:62ch}
 .refinfo{border-top:1px solid var(--line);padding-top:12px;margin-top:6px;font-size:.9rem}
 .refinfo strong{display:block;font-size:1rem}
 .err{color:var(--bad);font-weight:600}
+.publish{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;font-size:.9rem}
+.publish h3{font-size:.95rem;font-weight:500;margin:0 0 6px}
+.publish p{margin:0 0 8px;color:var(--muted)}
+.publish textarea{display:block;width:100%;margin:4px 0 10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
+.publish .msg{min-height:1.2em;margin:0}
 .reps{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
 .reps b{font-size:3.4rem;font-weight:300;line-height:1;letter-spacing:-.03em}
 .reps span{color:var(--muted)}
@@ -172,6 +177,7 @@ details.mine summary{cursor:pointer;font-weight:500}
           <input type="file" id="fileIn" accept="video/*" disabled>
         </label>
         <div class="refinfo" id="refInfo">Zatím žádný vzor.</div>
+        <div class="publish" id="publish" hidden></div>
         <button class="btn" id="btnDefault" style="margin-top:10px">Použít vzor z videa (dřep)</button>
         <div class="prec" id="prec"></div>
       </section>
@@ -261,7 +267,7 @@ async function loadRef(){
   if(!REF){  // naposledy vybraný cvik z knihovny
     let id = null; try{ id = localStorage.getItem("kinisi-lib-ref"); }catch(e){}
     const e = id && (await library()).find(x => x.id === id);
-    if(e){ try{ REF = await (await fetch(e.file, {cache: "no-cache"})).json(); }catch(err){} }
+    if(e){ try{ REF = await fetchRef(e); }catch(err){} }
   }
   if(!REF) REF = DEFAULT_REF;
   fillLibSel();
@@ -274,7 +280,7 @@ async function fillLibSel(){
 }
 $("libSel").onchange = async () => {
   const e = (await library()).find(x => x.id === $("libSel").value); if(!e) return;
-  try{ REF = await (await fetch(e.file, {cache: "no-cache"})).json(); }catch(err){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
+  try{ REF = await fetchRef(e); }catch(err){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
   ACTIVE_ITEM = null; stopAll();
   try{ localStorage.removeItem("fyzio-ref-v2"); localStorage.setItem("kinisi-lib-ref", e.id); }catch(err){}
   renderRefInfo(); setMode("ex"); if(typeof renderProgram === "function") renderProgram(); showReps(); fillLibSel();
@@ -472,7 +478,7 @@ function logLine(text){
   while(log.children.length > 6) log.lastChild.remove();
 }
 function renderRefInfo(){
-  renderSettings(); loadRefVideo();
+  renderSettings(); loadRefVideo(); renderPublish();
   const el = $("refInfo");
   if(!REF){ el.textContent = "Zatím žádný vzor."; return; }
   el.innerHTML = "";
@@ -481,6 +487,64 @@ function renderRefInfo(){
   p.textContent = `Hlavní pohyb: ${JMAP[REF.primary].name.toLowerCase()} (${Math.round(Math.min(REF.start,REF.far))}° až ${Math.round(Math.max(REF.start,REF.far))}°). ` +
     `Hlídané klouby: ${REF.present.map(id => JMAP[id].name.toLowerCase()).join(", ")}.`;
   el.append(p);
+}
+/* ---------- zveřejnění vzoru do sdílené knihovny (editor knihovny přihlášený v Přehledu pro terapeuta) ---------- */
+let publishTok = 0;
+async function renderPublish(){
+  const box = $("publish"), api = window.KinisiAPI, tok = ++publishTok;
+  if(!REF || !api){ box.hidden = true; return; }
+  const lib = await library();
+  const inRepo = !REF.db && lib.some(x => x.id === REF.id && !x.db);   // cviky z repa se upravují v repu
+  const who = inRepo ? null : await api.libraryEditor().catch(() => null);
+  if(tok !== publishTok) return;
+  box.innerHTML = ""; box.hidden = inRepo;
+  if(inRepo) return;
+  box.append(el("h3", {textContent: REF.db ? "Cvik je ve sdílené knihovně" : "Zveřejnit pro všechny"}));
+  if(who === null){ box.append(el("p", {}, "Aby vzor viděli všichni pacienti a terapeuti, přihlaste se v ", el("a", {href: "terapeut.html", textContent: "Přehledu pro terapeuta"}), " a vraťte se sem.")); return; }
+  if(who === false){ box.append(el("p", {textContent: "Váš účet zatím nemůže zveřejňovat cviky. Požádejte správce, ať vás přidá mezi editory knihovny."})); return; }
+  const desc = el("textarea", {rows: 2, maxLength: 500, placeholder: "Popis pro terapeuty, např. výpad vzad, telefon bokem ve výšce pasu",
+    value: REF.db ? lib.find(x => x.id === REF.id)?.desc || "" : ""});
+  const msg = el("p", {className: "msg"});
+  const settings = () => { const keep = ACTIVE_ITEM; ACTIVE_ITEM = null; const st = S(); ACTIVE_ITEM = keep; return st; };
+  const busy = async (btns, text, fn) => {
+    btns.forEach(b => b.disabled = true); msg.className = "msg"; msg.textContent = text;
+    try{ await fn(); }catch(e){ msg.className = "msg err"; msg.textContent = "Nepovedlo se: " + (e.message || e); btns.forEach(b => b.disabled = false); }
+  };
+  const show = async id => {   // po uložení přepnout na verzi ze serveru (s videem z úložiště)
+    await library(true);
+    REF = await fetchRef({id, db: true}); ACTIVE_ITEM = null;
+    try{ localStorage.removeItem("fyzio-ref-v2"); localStorage.setItem("kinisi-lib-ref", id); }catch(e){}
+    renderRefInfo(); fillLibSel();
+  };
+  if(!REF.db){
+    box.append(el("p", {textContent: "Vzor i s videem a nastavenou přesností se uloží na server a hned se objeví v knihovně cviků u všech pacientů a v sestavách terapeutů."}));
+    const pub = el("button", {className: "btn primary", type: "button", textContent: "Zveřejnit v knihovně"});
+    pub.onclick = () => busy([pub], "Nahrávám na server…", async () => {
+      let videoBlob = null;
+      if(REF.video?.startsWith("idb:")) videoBlob = await idbGet(REF.video.slice(4)).catch(() => null);
+      if(videoBlob && videoBlob.size > 50 * 1024 * 1024) throw new Error("video je větší než 50 MB, nahrajte kratší (stačí 2 až 4 opakování).");
+      const id = await api.publishExercise({...REF, settings: settings()}, {description: desc.value.trim(), videoBlob});
+      await show(id);
+      setStatus("good", "Cvik je zveřejněný v knihovně.", 3000);
+    });
+    box.append(el("label", {className: "field"}, "Popis cviku (nepovinné)", desc), el("div", {className: "row"}, pub), msg);
+  } else {
+    box.append(el("p", {textContent: "Úpravy přesnosti výše se pacientům projeví až po uložení."}));
+    const save = el("button", {className: "btn primary", type: "button", textContent: "Uložit změny"});
+    const del = el("button", {className: "btn", type: "button", textContent: "Odebrat z knihovny"});
+    save.onclick = () => busy([save, del], "Ukládám…", async () => {
+      await api.publishExercise({...REF, settings: settings()}, {id: REF.id, description: desc.value.trim()});
+      await show(REF.id); setStatus("good", "Změny jsou uložené v knihovně.", 2500);
+    });
+    del.onclick = () => { if(!confirm(`Odebrat cvik „${REF.name}“ ze sdílené knihovny? Pacienti, kteří ho mají v sestavě, ho přestanou vidět.`)) return;
+      busy([save, del], "Odebírám…", async () => {
+        await api.unpublishExercise(REF.id); await library(true);
+        REF = DEFAULT_REF; ACTIVE_ITEM = null;
+        try{ localStorage.removeItem("fyzio-ref-v2"); localStorage.setItem("kinisi-lib-ref", DEFAULT_REF.id); }catch(e){}
+        renderRefInfo(); fillLibSel(); setStatus("good", "Cvik je odebraný z knihovny.", 2500);
+      }); };
+    box.append(el("label", {className: "field"}, "Popis cviku", desc), el("div", {className: "row"}, save, del), msg);
+  }
 }
 function renderTips(){
   const el = $("tips"); el.innerHTML = "";
@@ -521,7 +585,9 @@ function showPairing(p){
 }
 /* ---------- sestava od terapeuta ---------- */
 let PROGRAM = null, LIBRARY = null;
-async function library(){ if(!LIBRARY){ try{ LIBRARY = await (await fetch("refs/index.json", {cache: "no-cache"})).json(); }catch(e){ LIBRARY = []; } } return LIBRARY; }
+// Knihovna = cviky z repa + zveřejněné na serveru (kinisi-api.js)
+async function library(refresh = false){ if(!LIBRARY || refresh){ try{ LIBRARY = await window.KinisiAPI.library(refresh); }catch(e){ LIBRARY = []; } } return LIBRARY; }
+const fetchRef = entry => window.KinisiAPI.loadExercise(entry);
 const FREQ = f => f?.per === "week" ? `${f.times}× týdně` : `${f?.times || 1}× denně`;
 function periodStart(per){ const d = new Date(); d.setHours(0,0,0,0); if(per === "week"){ const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); } return d.getTime(); }
 function doneCount(item){
@@ -547,7 +613,7 @@ function renderProgram(){
 async function selectItem(it){
   const lib = await library(), entry = lib.find(x => x.id === it.ref);
   if(!entry){ setStatus("warn", `Cvik ${it.name} v knihovně chybí.`, 3000); return; }
-  try{ REF = await (await fetch(entry.file, {cache: "no-cache"})).json(); }catch(e){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
+  try{ REF = await fetchRef(entry); }catch(e){ setStatus("warn", "Cvik se nepodařilo načíst.", 3000); return; }
   ACTIVE_ITEM = it; stopAll(); renderRefInfo(); setMode("ex"); renderProgram(); showReps(); fillLibSel();
   setStatus("", `${it.name}: ${it.sets} × ${it.reps}. Stiskněte Začít cvičit.`);
 }
