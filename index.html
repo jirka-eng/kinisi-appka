@@ -250,7 +250,10 @@ const JOINTS = [
   // Ramena k uším: vzdálenost ucho-rameno v % délky trupu (menší = ramena vytažená nahoru)
   {id:"shrug", name:"Ramena od uší", kind:"shrug", p:[7,11,23], dot:[11], unit:"%", hi:null, lo:"Ramena ze široka od uší."},
   // Kolena dovnitř (valgus): jen zepředu / šikmo zepředu; vychýlení kolena z osy kyčel-kotník v % délky nohy
-  {id:"valgus", name:"Kolena do stran", kind:"valgus", p:[23,25,27], dot:[25], unit:"%", hi:"Kolena ve směru špiček.", lo:null}
+  {id:"valgus", name:"Kolena do stran", kind:"valgus", p:[23,25,27], dot:[25], unit:"%", hi:"Kolena ve směru špiček.", lo:null},
+  // Vzdálenější noha od kamery (ve výpadu zadní noha). opt: do vzoru jen na vyžádání (buildReference extra),
+  // ať se nezmění dřepy ani vzory nahrané v appce; cvik s ní kreslí obě nohy.
+  {id:"knee2", name:"Zadní koleno", kind:"far", opt:true, p:[23,25,27], hi:"Pokrčte zadní koleno.", lo:null}
 ];
 const JMAP = Object.fromEntries(JOINTS.map(j => [j.id, j]));
 const LEFT = [11,13,15,23,25,27], RIGHT = [12,14,16,24,26,28];
@@ -651,6 +654,8 @@ function angle(a, b, c){
   return Math.acos(Math.max(-1, Math.min(1, (x1*x2+y1*y2)/d))) * 180 / Math.PI;
 }
 const si = i => side === "R" ? (TO_RIGHT[i] ?? i) : i;
+const fi = i => side === "R" ? i : (TO_RIGHT[i] ?? i);  // druhá (vzdálenější) strana těla
+const farLegs = () => !!REF?.present?.some(id => JMAP[id]?.kind === "far");
 // Obrys zad: z os trupu (kyčel -> rameno) se v 5 výškách hledá hrana postavy směrem dozadu.
 const BACK_T = [0.06, 0.28, 0.5, 0.72, 0.92];
 let backPts = null;
@@ -715,7 +720,7 @@ function computeAngles(lm, w, h, mask = null, wl = null){
   const deg = r => r * 180 / Math.PI;
   const out = {};
   for(const j of JOINTS){
-    const pts = j.p.map(i => P(lm, si(i), w, h));
+    const pts = j.p.map(i => P(lm, j.kind === "far" ? fi(i) : si(i), w, h));
     if(pts.some(p => p.v < VIS)){ out[j.id] = null; continue; }
     const [a, b, c] = pts;
     if(j.kind === "trunk") out[j.id] = deg(Math.atan2(Math.abs(a.x - b.x), b.y - a.y));
@@ -783,12 +788,13 @@ function makeRepCounter(start, far){
 }
 
 /* ---------- reference ---------- */
-function buildReference(fr, name, t0 = 0){
+function buildReference(fr, name, t0 = 0, extra = []){
   if(fr.length < 30) throw new Error("Vzor je moc krátký. Nahrajte aspoň jedno celé opakování.");
-  const present = JOINTS.map(j => j.id).filter(id => fr.filter(f => f.a[id] != null).length >= fr.length * 0.7);
+  const present = JOINTS.filter(j => !j.opt || extra.includes(j.id)).map(j => j.id).filter(id => fr.filter(f => f.a[id] != null).length >= fr.length * 0.7);
   if(present.length < 2) throw new Error("Ve vzoru nebylo dobře vidět tělo. V záběru má být celá postava.");
   let primary = null, best = 0;
   for(const id of present){
+    if(JMAP[id].opt) continue;  // hlavní kloub (počítání opakování) jen z běžných kloubů
     const v = fr.map(f => f.a[id]).filter(x => x != null).sort((a,b) => a-b);
     const lo = v[Math.floor(v.length*.03)], hi = v[Math.floor(v.length*.97)];
     if(hi - lo > best){ best = hi - lo; primary = id; }
@@ -1364,14 +1370,31 @@ function draw(lm, flags, W, H){
     if(!ok(a) || !ok(b)) continue;
     ctx.beginPath(); ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)); ctx.stroke();
   }
+  const okF = i => (lm[fi(i)].visibility ?? 1) >= VIS, XF = i => lm[fi(i)].x*W, YF = i => lm[fi(i)].y*H;
+  if(farLegs()){
+    // druhá noha (ve výpadu zadní): pánev + stehno, bérec, chodidlo
+    if(ok(23) && okF(23)){ ctx.beginPath(); ctx.moveTo(X(23), Y(23)); ctx.lineTo(XF(23), YF(23)); ctx.stroke(); }
+    for(const [a,b] of CONN.filter(([a]) => a >= 23)){
+      if(!okF(a) || !okF(b)) continue;
+      ctx.beginPath(); ctx.moveTo(XF(a), YF(a)); ctx.lineTo(XF(b), YF(b)); ctx.stroke();
+    }
+  }
   if(backPts){
     ctx.save(); ctx.lineWidth = lw; ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.setLineDash([lw*1.5, lw]);
     ctx.beginPath(); backPts.forEach(([x,y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.restore();
   }
-  const active = REF && mode === "exercise" ? REF.present : JOINTS.map(j => j.id);
+  const active = REF && mode === "exercise" ? REF.present : JOINTS.filter(j => !j.opt || REF?.present?.includes(j.id)).map(j => j.id);
   for(const id of active){
     const j = JMAP[id];
     let x, y;
+    if(j.kind === "far"){
+      if(!okF(j.p[1])) continue;
+      const bad = flags[id];
+      ctx.beginPath(); ctx.arc(XF(j.p[1]), YF(j.p[1]), bad ? r*1.9 : r, 0, Math.PI*2);
+      ctx.fillStyle = bad ? "#FF4D3A" : (mode === "exercise" ? "#37CA8A" : "#FFFFFF"); ctx.fill();
+      if(bad){ ctx.lineWidth = lw; ctx.strokeStyle = "#fff"; ctx.stroke(); ctx.strokeStyle = "rgba(255,255,255,.9)"; }
+      continue;
+    }
     if(j.kind === "back"){
       if(!backPts) continue;
       [x, y] = backPts[id === "lumbar" ? 1 : 3];
@@ -1449,11 +1472,16 @@ if(DEBUG) window.__fyzio = {
     const out = [];
     await eachFrame(url, fromSec, toSec, fps, (a, t) => out.push({t: t/1000, side, facing, ...Object.fromEntries(Object.entries(a).map(([k,v]) => [k, v == null ? null : Math.round(v)]))}));
     return out;
+  },
+  async landmarks(url, sec){  // body MediaPipe jednoho snímku: [x, y, viditelnost] v pixelech
+    let out = null;
+    await eachFrame(url, sec, sec, 1, (a, t, lm, W, H) => { out = lm.map(p => [Math.round(p.x*W), Math.round(p.y*H), Math.round((p.visibility ?? 1)*100)/100]); });
+    return out;
   }, setRef: r => { REF = r; renderRefInfo(); setMode("ex"); },
-  async buildRefFromUrl(url, fromSec = 0, toSec = 1e9, name = "Vzor", fps = 30){
+  async buildRefFromUrl(url, fromSec = 0, toSec = 1e9, name = "Vzor", fps = 30, extra = []){
     const fr = [];
     await eachFrame(url, fromSec, toSec, fps, (a, t) => fr.push({t, a, f: facing}));
-    return buildReference(fr, name);
+    return buildReference(fr, name, 0, extra);
   },
   async runExerciseOnUrl(url, fromSec = 0, toSec = 1e9, fps = 30){
     said.length = 0;
