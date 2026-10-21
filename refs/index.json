@@ -6,6 +6,36 @@
   "desc": "Výpady vzad z boku (video z XPS, 6 opakování pravou nohou vzad); koleno nad kotníkem, předklon trupu, bedra, hrudní páteř, hlava, ramena"
  },
  {
+  "id": "podrep-hyzde",
+  "name": "Podřep se zaměřením na aktivaci hýžďových svalů",
+  "file": "refs/podrep-hyzde.json",
+  "desc": "Podřep z boku (video z XPS, 4 opakování): kolena nad kotníky, předklon trupu z kyčlí, bedra, krk ve 3D"
+ },
+ {
+  "id": "drepy-ve-vypadu",
+  "name": "Dřepy ve výpadu",
+  "file": "refs/drepy-ve-vypadu.json",
+  "desc": "Dřepy ve výpadu z boku (video z XPS, 5 opakování): koleno přední nohy na místě, zadní koleno, předklon trupu, bedra, krk ve 3D"
+ },
+ {
+  "id": "drep-spicky",
+  "name": "Dřep – přechod na špičky",
+  "file": "refs/drep-spicky.json",
+  "desc": "Dřep z boku s přechody na špičky (video z XPS, 3 výpony): opakování se počítají podle výponu, hlídá krk ve 3D, bedra, předklon trupu"
+ },
+ {
+  "id": "rumunsky-mrtvy-tah",
+  "name": "Rumunský mrtvý tah s therabandem",
+  "file": "refs/rumunsky-mrtvy-tah.json",
+  "desc": "Mrtvý tah z boku (video z XPS, 4 opakování): bedra, hrudní páteř, krk ve 3D, předklon z kyčlí, kolena nad kotníky"
+ },
+ {
+  "id": "drep-paska",
+  "name": "Dřep s odporem elastické pásky",
+  "file": "refs/drep-paska.json",
+  "desc": "Dřep šikmo zepředu s páskou nad koleny (video z XPS, 4 opakování): kolena ve směru špiček, krk ve 3D, ramena"
+ },
+ {
   "id": "drep2-45",
   "name": "Dynamický podřep (šikmo zepředu, doporučeno)",
   "file": "refs/drep2-45.json",
