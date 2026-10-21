@@ -198,7 +198,7 @@ document.getElementById("pick").addEventListener("change", e => {
   const files = [...e.target.files].filter(f => /\.(png|jpe?g|webp)$/i.test(f.name) && f.size > 0);
   setItems(files.map(f => {
     const parts = f.webkitRelativePath.split("/").slice(1);   // drop the chosen root folder name
-    return {path: parts.join("/"), person: parts.length > 1 ? parts[0] : "", src: f};
+    return {path: parts.join("/"), person: personOf(parts.join("/")), src: f};
   }));
 });
 document.getElementById("prop").addEventListener("change", async e => {
@@ -207,8 +207,26 @@ document.getElementById("prop").addEventListener("change", async e => {
   catch(err){ alertBox("Soubor s návrhy se nepodařilo načíst: " + err.message); }
   e.target.value = "";
 });
+// a child is identified by every folder above Photos/ (e.g. "Butovice/57"), because numbers repeat between workplaces
+function personOf(path){
+  const parts = path.split("/"), i = parts.indexOf("Photos");
+  return (i > 0 ? parts.slice(0, i) : parts.slice(0, -1)).join("/");
+}
+// proposals may be keyed relative to a different root than the folder the therapist picked, so match by path suffix
+function rekey(raw){
+  const out = {}, byName = {};
+  for (const it of items) (byName[it.path.split("/").pop()] ??= []).push(it.path);
+  for (const [key, p] of Object.entries(raw)){
+    const cand = byName[key.split("/").pop()] || [];
+    const hit = cand.find(x => x === key) || cand.find(x => x.endsWith("/" + key) || key.endsWith("/" + x));
+    out[hit || key] = p;
+  }
+  return out;
+}
+let rawProps = {};
 function setProps(data){
-  props = data.items || {};
+  rawProps = data.items || rawProps;
+  props = rekey(rawProps);
   for (const [path, p] of Object.entries(props)){
     const r = rec(path);
     if (!r.view) r.view = p.view;
@@ -229,7 +247,7 @@ function setProps(data){
 }
 async function devLoad(list, prop){
   const l = await (await fetch(list)).json();
-  setItems(l.filter(u => u.startsWith("data/")).map(u => { const path = u.slice(5); return {path, person: path.split("/")[0], src: u}; }));
+  setItems(l.filter(u => u.startsWith("data/")).map(u => { const path = u.slice(5); return {path, person: personOf(path), src: u}; }));
   if (prop) setProps(await (await fetch(prop)).json());
 }
 function setItems(arr){
@@ -241,6 +259,7 @@ function setItems(arr){
   };
   arr.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
   items = arr;
+  if (Object.keys(rawProps).length) props = rekey(rawProps);
   document.getElementById("empty").hidden = !!items.length;
   document.getElementById("side").hidden = !items.length;
   document.getElementById("cv").hidden = !items.length;
