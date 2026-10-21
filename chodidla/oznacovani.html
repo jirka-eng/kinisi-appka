@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Označování chodidel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F4F4; --surface:#FFFFFF; --ink:#212121; --muted:#666666; --line:#DBDBDB;
+  --brand:#37CA8A; --top:#333333; --good:#1E8C5C; --good-bg:#E3F5EC; --warn:#9A6200; --warn-bg:#FCF1DC; --bad:#C0392B; --bad-bg:#FBE7E4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E;
+    --top:#15151C; --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1D1D26; --surface:#25313D; --ink:#EDEDED; --muted:#A3A3A3; --line:#3A3C3E;
+  --top:#15151C; --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.4}
+header{background:var(--surface);border-bottom:3px solid var(--brand);padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+header h1{font-size:1.05rem;margin:0 8px 0 0}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+button.primary,.btn.primary{background:var(--brand);border-color:var(--brand);color:#0E2A1D;font-weight:500}
+button:disabled{opacity:.45;cursor:default}
+.btn input{display:none}
+#progress{color:var(--muted);margin-left:auto}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;padding:12px 16px}
+@media (max-width:900px){ main{grid-template-columns:1fr} }
+#stage{position:relative;background:#000;border-radius:8px;overflow:hidden;min-height:200px}
+#cv{display:block;width:100%;cursor:crosshair;touch-action:none}
+#loupe{position:absolute;top:8px;left:8px;width:180px;height:180px;border:2px solid var(--brand);border-radius:8px;display:none;pointer-events:none;background:#000}
+#hint{position:absolute;left:0;right:0;bottom:0;background:#000b;color:#fff;padding:8px 12px;font-weight:500}
+#empty{color:#ccc;padding:40px 20px;text-align:center}
+aside{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px;align-self:start}
+aside h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 4px}
+.file{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg label{border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer;user-select:none}
+.seg input{display:none}
+.seg label:has(input:checked){background:var(--brand);border-color:var(--brand);color:#0E2A1D}
+.seg kbd{font-size:10px;color:var(--muted);margin-left:3px}
+.seg label:has(input:checked) kbd{color:#0E2A1D}
+.legs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.leg{border:1px solid var(--line);border-radius:6px;padding:6px}
+.leg b{display:block;margin-bottom:2px}
+.pts{list-style:none;margin:0 0 6px;padding:0;font-size:12px}
+.pts li::before{content:"○ ";color:var(--muted)}
+.pts li.done::before{content:"● ";color:var(--good)}
+.pts li.next{font-weight:700}
+.angle{font-size:1.1rem;font-weight:700}
+.tag{display:inline-block;border-radius:4px;padding:0 6px;font-size:12px}
+.tag.good{background:var(--good-bg);color:var(--good)}.tag.warn{background:var(--warn-bg);color:var(--warn)}.tag.bad{background:var(--bad-bg);color:var(--bad)}
+select,input[type=number],textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--surface);color:var(--ink)}
+.row{display:flex;gap:6px;align-items:center}
+.nav{display:flex;gap:6px;flex-wrap:wrap}
+.muted{color:var(--muted);font-size:12px}
+details summary{cursor:pointer;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Označování chodidel</h1>
+  <label class="btn primary">Vybrat složku s fotkami<input type="file" id="pick" webkitdirectory multiple></label>
+  <label class="btn">Načíst popisky…<input type="file" id="imp" accept=".json,application/json"></label>
+  <button id="exp">Uložit popisky do souboru</button>
+  <span id="progress"></span>
+</header>
+<main>
+  <div>
+    <div id="stage">
+      <div id="empty">Vyber složku s fotkami. Fotky zůstanou v tomto počítači, nic se nikam neposílá.</div>
+      <canvas id="cv" hidden></canvas>
+      <canvas id="loupe" width="180" height="180"></canvas>
+      <div id="hint" hidden></div>
+    </div>
+    <p class="muted">Klikni na bod, aby se umístil. Hotový bod jde chytit a posunout. Klávesy: ← → další fotka, Backspace smaže poslední bod, Z / O / B / N druh záběru, 1–6 poloha.</p>
+  </div>
+  <aside id="side" hidden>
+    <div>
+      <h2>Fotka</h2>
+      <div class="file" id="fname"></div>
+      <div class="row" style="margin-top:6px"><span>Věk (roky) u složky <b id="person"></b>:</span><input type="number" id="age" min="0" max="99" step="0.5" style="width:80px"></div>
+    </div>
+    <div>
+      <h2>Záběr</h2>
+      <div class="seg" id="view"></div>
+    </div>
+    <div id="rearOnly">
+      <h2>Poloha</h2>
+      <div class="seg" id="pose"></div>
+    </div>
+    <div id="legsBox">
+      <h2>Body a nález (zezadu: levá noha je vlevo na fotce)</h2>
+      <div class="legs" id="legs"></div>
+      <div class="row" style="margin-top:6px"><button id="clearPts">Smazat body</button></div>
+    </div>
+    <div>
+      <h2>Poznámka</h2>
+      <textarea id="note" rows="2"></textarea>
+    </div>
+    <div class="nav">
+      <button id="prev">← Předchozí</button>
+      <button id="next">Další →</button>
+      <button id="nextTodo" class="primary">Další neoznačená</button>
+    </div>
+    <label class="row muted"><input type="checkbox" id="skipOther" checked> při listování přeskakovat otisky a nepoužitelné</label>
+    <details><summary>Jak se měří úhel paty</summary>
+      <p class="muted">Osa bérce vede od středu lýtka ke středu Achillovky ve výšce kotníků. Osa paty vede od středu paty nahoře ke středu paty dole. Úhel mezi nimi je kladný, když pata uhýbá ven (valgus), a záporný, když uhýbá dovnitř (varus). Hranice v pořádku / mírně / výrazně jsou zatím jen orientační a doladí je terapeuti.</p>
+    </details>
+  </aside>
+</main>
+<script>
+const STORE = "kinisi-chodidla-v1";
+const VIEWS = [["rear","Zezadu","Z"],["plantar","Otisk zespodu","O"],["side","Z boku","B"],["bad","Nepoužitelná","N"]];
+const POSES = [["both","Stoj na obou","1"],["left","Na levé","2"],["right","Na pravé","3"],["toes","Špičky","4"],["lunge","Výpad","5"],["other","Jiné","6"]];
+const PTS = [["calf","střed lýtka (cca 15 cm nad kotníkem)"],["ach","střed Achillovky ve výšce kotníků"],["heelTop","střed paty nahoře"],["heelBot","střed paty dole (u podložky)"]];
+const HEEL = [["","–"],["straight","rovná"],["valgus1","vbočená mírně"],["valgus2","vbočená výrazně"],["varus","vybočená"]];
+const ACH = [["","–"],["straight","rovná"],["curved","zakřivená"]];
+const LEGS = [["L","Levá"],["P","Pravá"]];
+// orientation thresholds (degrees of heel valgus); placeholders until therapists set them
+const LIMITS = {mild: 5, strong: 10};
+
+let db = load();
+let items = [];      // {path, person, src: File|string}
+let idx = -1, img = null, imgUrl = null, drag = null;
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(STORE)) || {version:1, persons:{}, items:{}}; }
+  catch(e){ return {version:1, persons:{}, items:{}}; }
+}
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(db)); }catch(e){} progress(); }
+const cur = () => items[idx];
+function rec(path = cur()?.path){
+  if (!db.items[path]) db.items[path] = {view:"", pose:"", pts:{L:{},P:{}}, find:{L:{},P:{}}, note:""};
+  return db.items[path];
+}
+const partner = p => p.replace(/cam1-/, "\0").replace(/cam2-/, "cam1-").replace("\0", "cam2-");
+
+// signed heel angle; + = heel bottom deviates laterally from the shank axis (valgus)
+function heelAngle(pts, leg, size = img && [img.naturalWidth, img.naturalHeight]){
+  const {calf, ach, heelTop, heelBot} = pts;
+  if (!calf || !ach || !heelTop || !heelBot || !size) return null;
+  const [W, H] = size;
+  const dir = (a, b) => Math.atan2((b[0] - a[0]) * W, (b[1] - a[1]) * H);
+  let d = (dir(heelTop, heelBot) - dir(calf, ach)) * 180 / Math.PI;
+  d = ((d + 540) % 360) - 180;
+  return (leg === "L" ? -1 : 1) * d;   // seen from behind: left leg lateral = image left
+}
+function grade(a){
+  if (a == null) return "";
+  if (a > LIMITS.strong) return '<span class="tag bad">vbočená výrazně</span>';
+  if (a > LIMITS.mild) return '<span class="tag warn">vbočená mírně</span>';
+  if (a < -LIMITS.mild) return '<span class="tag warn">vybočená</span>';
+  return '<span class="tag good">v rozmezí</span>';
+}
+
+// ---------- loading photos ----------
+document.getElementById("pick").addEventListener("change", e => {
+  const files = [...e.target.files].filter(f => /\.(png|jpe?g|webp)$/i.test(f.name) && f.size > 0);
+  setItems(files.map(f => {
+    const parts = f.webkitRelativePath.split("/").slice(1);   // drop chosen root folder name
+    return {path: parts.join("/"), person: parts.length > 1 ? parts[0] : "", src: f};
+  }));
+});
+async function devList(url){
+  const list = await (await fetch(url)).json();
+  setItems(list.filter(u => u.startsWith("data/")).map(u => {
+    const path = u.slice(5); return {path, person: path.split("/")[0], src: u};
+  }));
+}
+function setItems(arr){
+  // order by person, then time of the shot (camN-DD-MM-YYYY-HH-MM-SS), then camera, so both views of one moment sit together
+  const key = it => {
+    const m = it.path.match(/cam(\d+)-(\d\d)-(\d\d)-(\d{4})-(\d\d)-(\d\d)-(\d\d)/);
+    const head = it.path.replace(/[^/]*$/, "").replace(/\d+/g, n => n.padStart(6, "0"));
+    return m ? `${head}${m[4]}${m[3]}${m[2]}${m[5]}${m[6]}${m[7]}-${m[1]}` : head + it.path;
+  };
+  arr.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
+  items = arr;
+  document.getElementById("empty").hidden = !!items.length;
+  document.getElementById("side").hidden = !items.length;
+  document.getElementById("cv").hidden = !items.length;
+  if (items.length) go(firstTodo(0) ?? 0);
+}
+
+// ---------- navigation ----------
+const skipOther = () => document.getElementById("skipOther").checked;
+function step(dir){
+  for (let i = idx + dir; i >= 0 && i < items.length; i += dir){
+    const v = db.items[items[i].path]?.view;
+    if (!skipOther() || (v !== "plantar" && v !== "bad")) return go(i);
+  }
+}
+function isDone(path){
+  const r = db.items[path];
+  if (!r?.view) return false;
+  if (r.view !== "rear") return true;
+  return !!r.pose && LEGS.every(([l]) => PTS.every(([k]) => r.pts?.[l]?.[k]));
+}
+function firstTodo(from){
+  for (let i = from; i < items.length; i++) if (!isDone(items[i].path)) return i;
+  return null;
+}
+async function go(i){
+  idx = i;
+  const it = cur();
+  if (imgUrl) URL.revokeObjectURL(imgUrl), imgUrl = null;
+  const src = typeof it.src === "string" ? it.src : (imgUrl = URL.createObjectURL(it.src));
+  const im = new Image(); im.src = src;
+  try{ await im.decode(); }catch(e){ return; }
+  if (cur() !== it) return;
+  img = im;
+  render(); draw();
+}
+
+// ---------- side panel ----------
+function seg(el, opts, value, name, onPick){
+  el.innerHTML = opts.map(([v, t, k]) => `<label><input type="radio" name="${name}" value="${v}" ${v === value ? "checked" : ""}>${t}<kbd>${k}</kbd></label>`).join("");
+  el.onchange = e => onPick(e.target.value);
+}
+function setView(v){
+  const r = rec(); r.view = v;
+  // the other camera of the same moment is almost always the other view
+  if (v === "rear"){
+    const p = partner(cur().path);
+    if (p !== cur().path && items.some(x => x.path === p) && !db.items[p]?.view) rec(p).view = "plantar";
+  }
+  save(); render(); draw();
+}
+function setPose(v){ rec().pose = v; save(); render(); }
+function render(){
+  const it = cur(), r = rec();
+  document.getElementById("fname").textContent = it.path;
+  document.getElementById("person").textContent = it.person || "–";
+  const age = document.getElementById("age");
+  age.value = db.persons[it.person]?.age ?? "";
+  age.onchange = () => { db.persons[it.person] = {...db.persons[it.person], age: age.value === "" ? null : +age.value}; save(); };
+  seg(document.getElementById("view"), VIEWS, r.view, "view", setView);
+  seg(document.getElementById("pose"), POSES, r.pose, "pose", setPose);
+  const rear = r.view === "rear";
+  document.getElementById("rearOnly").hidden = !rear;
+  document.getElementById("legsBox").hidden = !rear;
+  const nx = nextPoint(r);
+  document.getElementById("legs").innerHTML = LEGS.map(([l, name]) => {
+    const a = heelAngle(r.pts[l], l);
+    const opt = (list, v) => list.map(([k, t]) => `<option value="${k}" ${k === (v || "") ? "selected" : ""}>${t}</option>`).join("");
+    return `<div class="leg"><b>${name}</b>
+      <ul class="pts">${PTS.map(([k, t]) => `<li class="${r.pts[l][k] ? "done" : ""} ${nx && nx[0] === l && nx[1] === k ? "next" : ""}">${t}</li>`).join("")}</ul>
+      <div class="angle">${a == null ? "–" : (a > 0 ? "+" : "") + a.toFixed(1) + "°"}</div>${grade(a)}
+      <div class="muted" style="margin-top:6px">Pata podle terapeuta</div>
+      <select data-leg="${l}" data-f="heel">${opt(HEEL, r.find[l].heel)}</select>
+      <div class="muted">Achillovka</div>
+      <select data-leg="${l}" data-f="ach">${opt(ACH, r.find[l].ach)}</select></div>`;
+  }).join("");
+  document.querySelectorAll("#legs select").forEach(s => s.onchange = () => { rec().find[s.dataset.leg][s.dataset.f] = s.value; save(); });
+  const note = document.getElementById("note");
+  note.value = r.note || "";
+  note.oninput = () => { rec().note = note.value; save(); };
+  const hint = document.getElementById("hint");
+  hint.hidden = false;
+  hint.textContent = !r.view ? "Nejdřív vyber druh záběru (Z = zezadu, O = otisk, B = z boku, N = nepoužitelná)."
+    : !rear ? (r.view === "side" ? "Pohled z boku zatím body nemá, stačí poloha a poznámka." : "Hotovo, pokračuj šipkou →.")
+    : nx ? `Klikni: ${nx[0] === "L" ? "LEVÁ" : "PRAVÁ"} noha – ${PTS.find(p => p[0] === nx[1])[1]}`
+    : r.pose ? "Všechny body jsou umístěné. Doplň nález a pokračuj →." : "Body hotové. Vyber polohu (1–6).";
+  document.getElementById("prev").disabled = idx <= 0;
+  document.getElementById("next").disabled = idx >= items.length - 1;
+  progress();
+}
+function progress(){
+  if (!items.length) return;
+  const done = items.filter(x => isDone(x.path)).length;
+  const rear = items.filter(x => db.items[x.path]?.view === "rear" && isDone(x.path)).length;
+  document.getElementById("progress").textContent = `fotka ${idx + 1}/${items.length} · hotovo ${done} · zadních označených ${rear}`;
+}
+function nextPoint(r){
+  for (const [l] of LEGS) for (const [k] of PTS) if (!r.pts[l][k]) return [l, k];
+  return null;
+}
+
+// ---------- canvas ----------
+const cv = document.getElementById("cv"), g = cv.getContext("2d");
+const loupe = document.getElementById("loupe"), lg = loupe.getContext("2d");
+function draw(){
+  if (!img) return;
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const maxH = window.innerHeight - 150, boxW = cv.parentElement.clientWidth;
+  const scale = Math.min(boxW / W, maxH / H);
+  cv.style.width = Math.round(W * scale) + "px";
+  cv.width = W; cv.height = H;
+  g.drawImage(img, 0, 0);
+  const r = rec();
+  if (r.view !== "rear") return;
+  const lw = Math.max(2, W / 500), rad = Math.max(6, W / 160);
+  for (const [l] of LEGS){
+    const p = r.pts[l], P = k => p[k] && [p[k][0] * W, p[k][1] * H];
+    const line = (a, b, col, ext) => {
+      if (!a || !b) return;
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      g.strokeStyle = col; g.lineWidth = lw; g.beginPath();
+      g.moveTo(a[0] - dx * ext, a[1] - dy * ext); g.lineTo(b[0] + dx * (ext + .8), b[1] + dy * (ext + .8)); g.stroke();
+    };
+    g.setLineDash([lw * 4, lw * 3]); line(P("calf"), P("ach"), "#FFD400", 0); g.setLineDash([]);
+    line(P("heelTop"), P("heelBot"), "#FF3DB4", .3);
+    for (const [k] of PTS){
+      const q = P(k); if (!q) continue;
+      g.fillStyle = k.startsWith("heel") ? "#FF3DB4" : "#FFD400";
+      g.strokeStyle = "#000"; g.lineWidth = lw / 2;
+      g.beginPath(); g.arc(q[0], q[1], rad, 0, 7); g.fill(); g.stroke();
+    }
+    const a = heelAngle(p, l), hb = P("heelBot");
+    if (a != null && hb){
+      const t = (a > 0 ? "+" : "") + a.toFixed(1) + "°";
+      g.font = `bold ${Math.round(W / 40)}px Roboto, system-ui`;
+      const tw = g.measureText(t).width;
+      g.fillStyle = "#000b"; g.fillRect(hb[0] - tw / 2 - 8, hb[1] + rad * 2, tw + 16, W / 32);
+      g.fillStyle = "#fff"; g.fillText(t, hb[0] - tw / 2, hb[1] + rad * 2 + W / 40);
+    }
+  }
+}
+function toImg(e){
+  const b = cv.getBoundingClientRect();
+  return [(e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height];
+}
+function hit(pt){
+  const r = rec(), b = cv.getBoundingClientRect();
+  for (const [l] of LEGS) for (const [k] of PTS){
+    const q = r.pts[l][k];
+    if (q && Math.hypot((q[0] - pt[0]) * b.width, (q[1] - pt[1]) * b.height) < 12) return [l, k];
+  }
+  return null;
+}
+cv.addEventListener("pointerdown", e => {
+  const r = rec(); if (r.view !== "rear") return;
+  const pt = toImg(e), h = hit(pt);
+  if (h){ drag = h; cv.setPointerCapture(e.pointerId); return; }
+  const nx = nextPoint(r); if (!nx) return;
+  r.pts[nx[0]][nx[1]] = pt.map(v => +v.toFixed(5));
+  r.size = [img.naturalWidth, img.naturalHeight];
+  save(); render(); draw();
+});
+cv.addEventListener("pointermove", e => {
+  const pt = toImg(e);
+  if (drag){ rec().pts[drag[0]][drag[1]] = pt.map(v => +v.toFixed(5)); draw(); }
+  // loupe: 3x zoom around the cursor
+  if (!img) return;
+  const W = img.naturalWidth, H = img.naturalHeight, z = 3, s = 180 / z * (W / cv.getBoundingClientRect().width);
+  loupe.style.display = "block";
+  const b = cv.getBoundingClientRect();
+  loupe.style.left = (e.clientX - b.left < 220 && e.clientY - b.top < 220) ? "auto" : "8px";
+  loupe.style.right = loupe.style.left === "auto" ? "8px" : "auto";
+  lg.drawImage(cv, pt[0] * W - s / 2, pt[1] * H - s / 2, s, s, 0, 0, 180, 180);
+  lg.strokeStyle = "#37CA8A"; lg.lineWidth = 1;
+  lg.beginPath(); lg.moveTo(90, 70); lg.lineTo(90, 110); lg.moveTo(70, 90); lg.lineTo(110, 90); lg.stroke();
+});
+cv.addEventListener("pointerup", () => { if (drag){ drag = null; save(); render(); draw(); } });
+cv.addEventListener("pointerleave", () => loupe.style.display = "none");
+window.addEventListener("resize", draw);
+
+function undoPoint(){
+  const r = rec(); let last = null;
+  for (const [l] of LEGS) for (const [k] of PTS) if (r.pts[l][k]) last = [l, k];
+  if (last){ delete r.pts[last[0]][last[1]]; save(); render(); draw(); }
+}
+document.getElementById("clearPts").onclick = () => { rec().pts = {L:{}, P:{}}; save(); render(); draw(); };
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("nextTodo").onclick = () => { const i = firstTodo(idx + 1) ?? firstTodo(0); if (i != null) go(i); };
+document.addEventListener("keydown", e => {
+  if (!items.length || e.target.matches?.("input:not([type=radio]):not([type=checkbox]),textarea,select")) return;
+  const k = e.key.toUpperCase();
+  // preventDefault: a focused radio would otherwise switch its value on arrow keys
+  if (e.key === "ArrowRight"){ e.preventDefault(); step(1); }
+  else if (e.key === "ArrowLeft"){ e.preventDefault(); step(-1); }
+  else if (e.key === "Backspace"){ e.preventDefault(); undoPoint(); }
+  else if (VIEWS.some(v => v[2] === k)) setView(VIEWS.find(v => v[2] === k)[0]);
+  else if (rec().view === "rear" && POSES.some(p => p[2] === k)) setPose(POSES.find(p => p[2] === k)[0]);
+});
+
+// ---------- export / import ----------
+document.getElementById("exp").onclick = () => {
+  const out = {...db, exported: new Date().toISOString(), pointsSpec: PTS, limits: LIMITS, items: {}};
+  for (const [path, r] of Object.entries(db.items)){
+    out.items[path] = {...r};
+    if (r.view === "rear" && r.size) out.items[path].angles = Object.fromEntries(LEGS.map(([l]) => {
+      const a = heelAngle(r.pts[l], l, r.size); return [l, a == null ? null : +a.toFixed(1)];
+    }));
+  }
+  const blob = new Blob([JSON.stringify(out, null, 1)], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `popisky-chodidel-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+document.getElementById("imp").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    db.persons = {...db.persons, ...data.persons};
+    db.items = {...db.items, ...data.items};
+    save(); if (items.length){ render(); draw(); }
+    alert(`Načteno ${Object.keys(data.items || {}).length} popsaných fotek.`);
+  }catch(err){ alert("Soubor se nepodařilo načíst: " + err.message); }
+  e.target.value = "";
+});
+
+const dev = new URLSearchParams(location.search).get("list");
+if (dev) devList(dev);
+</script>
+</body>
+</html>

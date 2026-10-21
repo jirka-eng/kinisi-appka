@@ -29,6 +29,8 @@ Na projektu pracují Jirka (majitel repa, merguje) a kolegové z Kinisi. **S lid
 - `supabase/migrations/` – schéma databáze.
 - `hlas/` – namluvené hlášky (Fyzioscanner hlas), viz `hlas/README.md`. Texty hlášek se řídí jazykovým manuálem Kinisi.
 - `web/` – prodejní web Fyzioscanneru.
+- `chodidla/` – scanner chodidla (druhá funkce): `oznacovani.html` je nástroj terapeutů na popis fotek nohou zezadu,
+  plán a pravidla jsou v `chodidla/README.md`. Fotky chodidel a popisky jsou zdravotní data dětí, do repa nepatří.
 - `vendor/`, `models/` – MediaPipe a model postavy (hostované lokálně, neměnit verze bez důvodu).
 - `fyzio-kontrola-cviku.md` – původní zadání a popis detekce.
 
