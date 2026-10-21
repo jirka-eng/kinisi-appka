@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Metodika os paty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F5F4; --surface:#FFFFFF; --ink:#1F2421; --muted:#5E6762; --line:#D9DED9;
+  --brand:#37CA8A; --brand-soft:#E3F5EC; --shank:#B88400; --heel:#D6338F; --vert:#2F5BD3;
+  --good:#1E8C5C; --good-bg:#E3F5EC; --warn:#9A6200; --warn-bg:#FCF1DC; --bad:#C0392B; --bad-bg:#FBE7E4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1A1F1D; --surface:#232A27; --ink:#E9EEEB; --muted:#A3ADA8; --line:#38423D;
+    --brand:#4ED49A; --brand-soft:#1D3A30; --shank:#F0C04A; --heel:#FF6FBF; --vert:#8FAEFF;
+    --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1A1F1D; --surface:#232A27; --ink:#E9EEEB; --muted:#A3ADA8; --line:#38423D;
+  --brand:#4ED49A; --brand-soft:#1D3A30; --shank:#F0C04A; --heel:#FF6FBF; --vert:#8FAEFF;
+  --good:#4ED49A; --good-bg:#1D3A30; --warn:#F0B24A; --warn-bg:#3B3222; --bad:#FF7A6B; --bad-bg:#43282A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.6}
+.wrap{max-width:48rem;margin:0 auto;padding-inline:16px;padding-block:28px 56px;display:flex;flex-direction:column;gap:34px}
+header{border-bottom:3px solid var(--brand);padding-bottom:18px;display:flex;flex-direction:column;gap:8px}
+h1,h2,h3{margin:0;line-height:1.25;text-wrap:balance}
+h1{font-size:1.9rem} h2{font-size:1.3rem} h3{font-size:1.05rem;font-weight:500}
+p{margin:0;max-width:66ch}
+.eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lead{color:var(--muted)}
+section{display:flex;flex-direction:column;gap:12px}
+ul,ol{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:6px}
+a{color:inherit;text-underline-offset:2px}
+.figure{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+@media (max-width:640px){ .figure{grid-template-columns:1fr} .figure svg{max-width:260px;margin:0 auto} }
+.figure svg{display:block;width:100%;height:auto}
+.figure ol{min-width:0}
+.pt{display:inline-block;width:.8em;height:.8em;border-radius:50%;vertical-align:-.05em;margin-right:4px}
+.note{background:var(--brand-soft);border-radius:8px;padding:12px 14px}
+.warn{background:var(--warn-bg);border-radius:8px;padding:12px 14px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.94rem;font-variant-numeric:tabular-nums}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.tag{display:inline-block;border-radius:4px;padding:0 7px;font-size:.85rem;white-space:nowrap}
+.tag.good{background:var(--good-bg);color:var(--good)} .tag.warn{background:var(--warn-bg);color:var(--warn)} .tag.bad{background:var(--bad-bg);color:var(--bad)}
+.src{font-size:.9rem;color:var(--muted)}
+.src li{word-break:break-word}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Kinisi Fyzioscanner · scanner chodidla</div>
+    <h1>Metodika os paty</h1>
+    <p class="lead">Jak na fotce zezadu zakreslit osu bérce a osu paty, jaké úhly z nich počítáme a podle čeho návrh hodnocení posuzovat. Vychází z ověřených klinických metod (Root, RCSP) a studií o měření z fotografií. Hranice jsou návrh, potvrdí je Lenka s Martinem.</p>
+  </header>
+
+  <section>
+    <h2>Body na noze</h2>
+    <div class="figure">
+      <svg viewBox="0 0 220 300" role="img" aria-labelledby="figt">
+        <title id="figt">Čtyři body na pravé noze zezadu a dvě osy</title>
+        <line x1="40" y1="282" x2="190" y2="282" stroke="var(--muted)" stroke-width="2"/>
+        <path d="M78 12 C 72 80, 82 150, 86 190 C 88 215, 76 238, 80 258 C 84 284, 140 284, 146 258 C 152 236, 134 214, 134 190 C 136 150, 150 80, 144 12" fill="none" stroke="var(--muted)" stroke-width="1.6"/>
+        <line x1="111" y1="60" x2="110" y2="282" stroke="var(--vert)" stroke-width="1" stroke-dasharray="2 4"/>
+        <line x1="111" y1="60" x2="110" y2="178" stroke="var(--shank)" stroke-width="3" stroke-dasharray="7 5"/>
+        <line x1="110" y1="178" x2="108" y2="276" stroke="var(--shank)" stroke-width="1.3" stroke-dasharray="3 4"/>
+        <line x1="108" y1="210" x2="121" y2="276" stroke="var(--heel)" stroke-width="3"/>
+        <line x1="86" y1="60" x2="136" y2="60" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="90" y1="178" x2="130" y2="178" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="85" y1="210" x2="131" y2="210" stroke="var(--muted)" stroke-width="1"/>
+        <line x1="84" y1="268" x2="142" y2="268" stroke="var(--muted)" stroke-width="1"/>
+        <circle cx="111" cy="60" r="6" fill="var(--shank)"/>
+        <circle cx="110" cy="178" r="6" fill="var(--shank)"/>
+        <circle cx="108" cy="210" r="6" fill="var(--heel)"/>
+        <circle cx="119.5" cy="268" r="6" fill="var(--heel)"/>
+        <g font-family="Roboto, sans-serif" font-size="12" fill="var(--ink)">
+          <text x="150" y="64">1</text><text x="150" y="182">2</text><text x="150" y="214">3</text><text x="152" y="272">4</text>
+          <text x="40" y="298" fill="var(--muted)" font-size="10">podložka</text>
+        </g>
+      </svg>
+      <ol>
+        <li><span class="pt" style="background:var(--shank)"></span><b>Střed lýtka</b> na začátku dolní třetiny bérce. Prakticky: nad bodem 2 ve vzdálenosti dvojnásobku výšky paty (bod 3 až 4). Když tam fotka nesahá, nejvýš, kde jsou vidět oba obrysy bérce.</li>
+        <li><span class="pt" style="background:var(--shank)"></span><b>Střed Achillovky</b> ve výšce vrcholů kotníků.</li>
+        <li><span class="pt" style="background:var(--heel)"></span><b>Střed paty nahoře</b> na horním okraji patní kosti, kde se upíná Achillovka a obrys paty se začne rozšiřovat.</li>
+        <li><span class="pt" style="background:var(--heel)"></span><b>Střed paty dole</b> asi 1 cm nad podložkou, nejníž, kde jsou oba obrysy paty ještě zřetelně oddělené od podložky.</li>
+      </ol>
+    </div>
+    <div class="note"><b>Každý bod je půlení.</b> V dané výšce se odečte vnitřní a vnější obrys nohy a bod leží přesně uprostřed (tenké šedé čáry na obrázku). Nesleduje se kožní řasa, stín ani okraj šlachy. Takhle se kreslí osa bérce i osa paty v Rootově metodě a ve studiích měřených z fotek. Právě stejné půlení na každé fotce nejvíc rozhoduje o tom, jestli jsou čísla srovnatelná.</div>
+  </section>
+
+  <section>
+    <h2>Co z bodů počítáme</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Úhel</th><th>Mezi čím</th><th>K čemu</th></tr></thead>
+        <tbody>
+          <tr><td><b>Postavení paty</b><br><span class="src">RCSP, klidové postavení paty ve stoji</span></td><td>osa paty (body 3–4) a svislice <span style="color:var(--vert)">(modře)</span></td><td>Hlavní číslo pro hodnocení. K němu se vztahují normy podle věku.</td></tr>
+          <tr><td><b>Úhel bérec–pata</b><br><span class="src">rearfoot angle podle Roota</span></td><td>osa paty (3–4) a osa bérce (1–2)</td><td>Doplněk. Ukáže, jestli pata uhýbá vůči bérci, i když je celá noha nakloněná.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Znaménko: <b>+</b> znamená, že spodek paty uhýbá ven (everze, valgus), <b>−</b> dovnitř (inverze, varus). Levá noha je na fotce zezadu vlevo.</p>
+  </section>
+
+  <section>
+    <h2>Jak má vypadat správná fotka</h2>
+    <ul>
+      <li>Telefon <b>ve výšce pat</b>, displej svisle a <b>kolmo</b> na nohy, ne šikmo shora. Hrana podložky má být na fotce vodorovně.</li>
+      <li>Vzdálenost raději větší (1,5–2 m, případně s dvojnásobným přiblížením). Z blízka širokým objektivem se paty zkreslují.</li>
+      <li>Chodidla <b>rovnoběžně, špičky dopředu</b>, stoj na šířku pánve, váha rovnoměrně na obou nohách, pohled dopředu.</li>
+      <li>Holé nohy aspoň od kolen, klidné pozadí, dobré světlo.</li>
+    </ul>
+    <div class="warn">Na tom hodně záleží. Pokus v laboratoři ukázal, že při vytočení chodidel o 20° a náklonu kamery o 20° se úhel paty na fotce zkreslí až o 7°. Při vytočení do 5° bylo měření přijatelné při všech zkoušených náklonech.</div>
+  </section>
+
+  <section>
+    <h2>Normy a návrh hodnocení</h2>
+    <ul>
+      <li><b>Děti do 7 let:</b> pata je ve stoji přirozeně vbočená a každým rokem se narovná zhruba o 1°. Pravidlo z dětské podiatrie: očekávaná everze ≈ <b>7 − věk</b> (4leté dítě asi 3°). Kolem 7–8 let je pata svisle.</li>
+      <li><b>Plochá noha u dětí:</b> postavení paty <b>6° a víc</b> odlišilo plochou nohu s citlivostí 68 % a specificitou 81 % (studie RCSP proti indexu FPI-6).</li>
+      <li><b>Kontext FPI-6:</b> postavení paty je jedna ze šesti položek indexu držení nohy. Medián FPI u dětí je +4 v 6 letech a +3 v 11 letech. My měříme jen zadní část nohy, výsledek proto není celé FPI.</li>
+    </ul>
+    <p>Z toho vychází <b>návrh hodnocení</b>, který appka ukazuje u každé nohy. Je orientační a doladí ho terapeuti.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Postavení paty (RCSP)</th><th>Návrh</th></tr></thead>
+        <tbody>
+          <tr><td>do očekávané hodnoty + 3°</td><td><span class="tag good">v rozmezí</span></td></tr>
+          <tr><td>o 3–6° nad očekávanou hodnotou</td><td><span class="tag warn">vbočená mírně</span></td></tr>
+          <tr><td>o víc než 6° nad očekávanou hodnotou</td><td><span class="tag bad">vbočená výrazně</span></td></tr>
+          <tr><td>inverze víc než 3° (−3° a méně)</td><td><span class="tag warn">vybočená</span></td></tr>
+          <tr><td>rozdíl levá–pravá víc než 4°</td><td><span class="tag warn">nesouměrné</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="src">Očekávaná hodnota = 7 − věk do 7 let, potom 0°. Bez vyplněného věku appka počítá s dítětem nad 7 let a upozorní na to.</p>
+  </section>
+
+  <section>
+    <h2>Jak kontrolovat návrhy</h2>
+    <ol>
+      <li><b>Sedí osy?</b> Pokud některý bod leží mimo střed nohy o víc než asi desetinu šířky paty, chyťte ho a posuňte. Nástroj si opravu uloží.</li>
+      <li><b>Souhlasíte s hodnocením levé a pravé nohy?</b> Když ne, vyberte, jak to vidíte vy. Model se učí z vašeho úsudku, číslo je jen podklad.</li>
+      <li>Zakřivenou Achillovku (Helbingovo znamení) a počet prstů vidět zvenku vedle paty označte zvlášť. Úhel je nezachytí.</li>
+    </ol>
+    <div class="note">Měření z fotek je mezi hodnotiteli dobře shodné (ve studii ICC 0,85–0,92), ale stejný člověk vyfocený znovu po týdnu dal výrazně jiné hodnoty. Rozdíl 2–3° mezi dvěma fotkami proto neber jako skutečnou změnu.</div>
+  </section>
+
+  <section class="src">
+    <h2 style="color:var(--ink)">Zdroje</h2>
+    <ul>
+      <li>The resting calcaneal stance position (RCSP): an old dog, with new tricks. Hranice 6°, spolehlivost. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10951039/">pmc.ncbi.nlm.nih.gov/articles/PMC10951039</a></li>
+      <li>Study of the Distortion of the Indirect Angular Measurements of the Calcaneus Due to Perspective: In Vitro Testing. Zkreslení náklonem kamery a rotací chodidla. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8067713/">pmc.ncbi.nlm.nih.gov/articles/PMC8067713</a></li>
+      <li>Spolehlivost fotogrammetrického měření úhlu paty (Braz J Med Biol Res). Body na lýtku a patě, ICC. <a href="https://scielo.br/j/bjmbr/a/Y5xkzg5tgRbPY9kNxCtN9nc/?lang=en">scielo.br/j/bjmbr/a/Y5xkzg5tgRbPY9kNxCtN9nc</a></li>
+      <li>Establishing normative foot posture index values for the paediatric population (2016). FPI u dětí 6–11 let. <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4962378/">ncbi.nlm.nih.gov/pmc/articles/PMC4962378</a></li>
+      <li>Redmond et al. Normative values for the Foot Posture Index (2008). <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2553778">pmc.ncbi.nlm.nih.gov/articles/PMC2553778</a></li>
+      <li>Considerations in the development of the lower limb in children (O&amp;P Edge). Pravidlo „7 − věk“. Jde o přehledový článek, ne o studii. <a href="https://opedge.com/considerations-in-the-development-of-the-lower-limb-in-children/">opedge.com</a></li>
+    </ul>
+  </section>
+
+  <footer>Nástroj na kontrolu návrhů: <a href="oznacovani.html">oznacovani.html</a>. Fotky dětí a soubory s popisky patří jen na sdílený Disk Kinisi.</footer>
+</div>
+</body>
+</html>

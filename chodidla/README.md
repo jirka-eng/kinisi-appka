@@ -16,23 +16,26 @@ Model postavy, který používá kontrola cvičení (MediaPipe Pose), na fotkác
 potřebuje vidět obličej a trup. Ověřeno na 330 fotkách z podoskopu Kinisi (říjen 2026): na zadních záběrech
 nenašel nic použitelného. Proto se naučí vlastní malý model, který najde body na noze přímo v telefonu.
 
-## Označování fotek: `oznacovani.html`
-Nástroj pro terapeuty, ze kterých vznikají data na učení modelu. Otevři
-https://jirka-eng.github.io/kinisi-appka/chodidla/oznacovani.html a vyber složku s fotkami. Fotky zůstávají v počítači
-a nikam se neposílají.
+## Metodika: `metodika.html`
+Jak zakreslit osu bérce a osu paty (4 body, každý jako půlení šířky nohy), jaké úhly počítáme (postavení paty
+proti svislici a úhel bérec–pata), jak má vypadat správná fotka a normy podle věku se zdroji. Hranice v ní jsou
+návrh a potvrdí je terapeuti.
 
-1. U každé fotky vyber druh záběru: `Z` zezadu, `O` otisk, `B` z boku, `N` nepoužitelná. Když označíš zadní snímek,
-   druhá kamera ze stejné vteřiny se sama označí jako otisk a při listování se přeskočí.
-2. U zadního snímku vyber polohu (`1`–`6`) a naklikej 4 body na každé noze: střed lýtka, střed Achillovky ve výšce
-   kotníků, střed paty nahoře a střed paty dole. Nástroj hned ukáže úhel paty (+ znamená vbočená, − vybočená).
-3. Doplň, jak patu a Achillovku vidíš ty. Model se učí z tvého úsudku, ne z vypočteného čísla.
-4. U složky (dítěte) vyplň věk.
+## Kontrola návrhů: `oznacovani.html`
+Claude na každém zadním snímku navrhne body a hodnocení paty, terapeuti návrh potvrdí nebo opraví. Z verdiktů
+a oprav se upraví pravidla a naučí model.
+
+1. Otevři https://jirka-eng.github.io/kinisi-appka/chodidla/oznacovani.html , vyber složku s fotkami a načti soubor
+   s návrhy `navrhy-chodidel.json` (je na sdíleném Disku). Vyplň, kdo kontroluje. Fotky zůstávají v počítači.
+2. U složky (dítěte) vyplň věk. Podle něj se počítá očekávané postavení paty.
+3. U každé fotky: **Sedí osy?** Když ne, chyť bod a posuň ho. **Souhlasíš s hodnocením** levé a pravé nohy?
+   Když ne, vyber, jak to vidíš ty. Když vše sedí, stačí **Enter**.
+4. Nejdřív oba zkontrolujete stejných 30 fotek (označené „společná fotka“), každý zvlášť. Podle shody poznáme,
+   jakou přesnost můžeme od appky chtít. Potom si rozdělte zbytek.
 5. Průběžně ukládej tlačítkem **Uložit popisky do souboru** a soubor dej na sdílený Disk. Popisky se drží jen
    v prohlížeči daného počítače. Na jiném počítači je načteš tlačítkem **Načíst popisky**.
 
-Rozdělte si složky tak, aby dva lidé nepopisovali stejné fotky. Při načtení se pozdější popisek přepíše.
-
-Hranice „v rozmezí / mírně / výrazně“ (5° a 10°) jsou zatím jen orientační. Doladí je terapeuti podle věku.
+Fotky bez návrhu jde označit ručně: zvol záběr (`Z` / `O` / `B` / `N`), polohu (`1`–`6`) a naklikej 4 body.
 
 ## Pravidla
 - **Fotky ani soubory s popisky do repa nedávej.** Repo je veřejné a jsou to zdravotní údaje dětí (na otiscích jsou
